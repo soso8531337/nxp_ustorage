@@ -258,11 +258,12 @@ static int send_packet(mux_itunes *dev, enum mux_protocol proto, void *header, c
 	memcpy(buffer + mux_header_size, header, hdrlen);
 
 	dev->ib_used = mux_header_size + hdrlen;
-	if(total > dev->ib_capacity){
+	if(data && total > dev->ib_capacity){
 		uint16_t sndsize = 0, packetSize;
+		void *ptr = data;
 		while(sndsize < total){
 			packetSize = min(total-sndsize, dev->ib_capacity-dev->ib_used);
-			memcpy((void*)buffer + dev->ib_used, data+sndsize, packetSize);
+			memcpy(buffer + dev->ib_used, ptr+sndsize, packetSize);
 			if((res = usUsb_BlukPacketSend(&(dev->usbdev), buffer, dev->ib_used+packetSize)) < 0) {
 				PRODEBUG("usb_send failed while sending packet (len %d) to device: %d\r\n",  
 							dev->ib_used+packetSize, res);
@@ -401,7 +402,7 @@ static uint8_t NXP_SwitchAOAMode(usb_device *usbdev)
 	USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
 	uint8_t version[2] = {0};
 	uint16_t ConfigDescriptorSize = 0;
-	uint8_t  ConfigDescriptorData[512];
+	uint8_t  ConfigDescriptorData[512], *PtrConfigDescriptorData = NULL;
 	
 	if(!usbdev){
 		PRODEBUG("Parameter Empty..\r\n");
@@ -419,7 +420,9 @@ static uint8_t NXP_SwitchAOAMode(usb_device *usbdev)
 		return PROTOCOL_REGEN;
 	}
 	/*Found Interface Class */
-	if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, &ConfigDescriptorData,
+	/*Must Set to var, the funciton will change the point*/
+	PtrConfigDescriptorData = ConfigDescriptorData;
+	if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, &PtrConfigDescriptorData,
 				NXP_FILTERFUNC_AOA_CLASS) != DESCRIPTOR_SEARCH_COMP_Found){		
 		PRODEBUG("Attached Device Not a Valid AOA Device[NO 0xff Interface].\r\n");
 		return PROTOCOL_REGEN;

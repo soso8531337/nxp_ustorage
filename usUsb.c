@@ -160,7 +160,7 @@ static uint8_t NXP_ClaimInterface(usb_device *usbdev, nxp_clminface*cPrivate)
 	USB_Descriptor_Interface_t* MassStorageInterface = NULL;
 	uint8_t portnum = 0;
 	uint16_t ConfigDescriptorSize = 0;
-	uint8_t  ConfigDescriptorData[512];
+	uint8_t  ConfigDescriptorData[512], *PtrConfigDescriptorData = NULL;
 	
 
 	if(!cPrivate){
@@ -186,17 +186,18 @@ static uint8_t NXP_ClaimInterface(usb_device *usbdev, nxp_clminface*cPrivate)
 	if (DESCRIPTOR_TYPE(ConfigDescriptorData) != DTYPE_Configuration){
 		return USB_REGEN;
 	}
-
+	/*Set array name to point var, USB_GetNextDescriptorComp will change point*/
+	PtrConfigDescriptorData = ConfigDescriptorData;
 	while (!(DataINEndpoint) || !(DataOUTEndpoint)){
 		if (!(MassStorageInterface) ||
-				USB_GetNextDescriptorComp(&ConfigDescriptorSize, (void **)&ConfigDescriptorData,
+				USB_GetNextDescriptorComp(&ConfigDescriptorSize, &PtrConfigDescriptorData,
 						cPrivate->callbackEndpoint) != DESCRIPTOR_SEARCH_COMP_Found){
-			if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, (void **)&ConfigDescriptorData,
+			if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, &PtrConfigDescriptorData,
 						cPrivate->callbackInterface) != DESCRIPTOR_SEARCH_COMP_Found){
 				return USB_REGEN;
 			}
 
-			MassStorageInterface = DESCRIPTOR_PCAST(ConfigDescriptorData, USB_Descriptor_Interface_t);
+			MassStorageInterface = DESCRIPTOR_PCAST(PtrConfigDescriptorData, USB_Descriptor_Interface_t);
 
 			DataINEndpoint  = NULL;
 			DataOUTEndpoint = NULL;
@@ -204,7 +205,7 @@ static uint8_t NXP_ClaimInterface(usb_device *usbdev, nxp_clminface*cPrivate)
 			continue;
 		}
 
-		USB_Descriptor_Endpoint_t* EndpointData = DESCRIPTOR_PCAST(ConfigDescriptorData, USB_Descriptor_Endpoint_t);
+		USB_Descriptor_Endpoint_t* EndpointData = DESCRIPTOR_PCAST(PtrConfigDescriptorData, USB_Descriptor_Endpoint_t);
 
 		if ((EndpointData->EndpointAddress & ENDPOINT_DIR_MASK) == ENDPOINT_DIR_IN){
 			DataINEndpoint  = EndpointData;
@@ -296,7 +297,7 @@ uint8_t usUsb_SendControlRequest(usb_device *usbdev,
 {
 #ifdef NXP_CHIP_18XX
 	if(!usbdev){
-		return 1;
+		return USB_REPARA;
 	}
 	return NXP_SendControlRequest(usbdev->device_address, bmRequestType,
 				bRequest, wValue, wIndex, wLength, data);
