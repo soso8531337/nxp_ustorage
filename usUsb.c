@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include "usUsb.h"
+#include "usSys.h"
 
 #ifdef NXP_CHIP_18XX
 #include "MassStorageHost.h"
@@ -23,6 +24,8 @@ enum{
 
 #if defined(DEBUG_ENABLE)
 #define USBDEBUG(...) do {printf("[USB Mod]");printf(__VA_ARGS__);} while(0)
+#else
+#define PRODEBUG(...)
 #endif
 
 #define USB_TRUE		1
@@ -37,7 +40,7 @@ enum{
 /*Special USB Command*/
 static uint8_t NXP_SendControlRequest(const uint8_t corenum, 
 			uint8_t bmRequestType, uint8_t bRequest, 
-			uint16_t wValue, uint16_t wIndex, uint16_t wLength, const void *data)
+			uint16_t wValue, uint16_t wIndex, uint16_t wLength, void * const data)
 {
 	USB_ControlRequest = (USB_Request_Header_t)
 		{
@@ -52,29 +55,31 @@ static uint8_t NXP_SendControlRequest(const uint8_t corenum,
 
 	return USB_Host_SendControlRequest(corenum,data);
 }
-static uint8_t NXP_BlukPacketSend(nxp_bluk *cPrivate, uint8_t *buffer, uint32_t length)
+static uint8_t NXP_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length)
 {
 	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
 	uint8_t ErrorCallback = 0;
+	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
 
-	if(!cPrivate || !buffer){
+	if(!usbdev || !buffer){
 		return USB_REPARA;
 	}
-	Pipe_SelectPipe(cPrivate->usbnum, cPrivate->endnum);
+	Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
+			MSInterfaceInfo->Config.DataINPipeNumber);
 	
-	ErrorCode = Pipe_Streaming(cPrivate->usbnum,buffer, length, 
-				cPrivate->packetsize);
+	ErrorCode = Pipe_Streaming(MSInterfaceInfo->Config.PortNumber,buffer, length, 
+				usbdev->wMaxPacketSize);
 	if(ErrorCode == PIPE_RWSTREAM_IncompleteTransfer){
 		USBDEBUG("PiPe Streaming Not Ready[%d]...\r\n", PIPE_RWSTREAM_IncompleteTransfer);			
 	}else{
 		USBDEBUG("PiPe Streaming Read[%dBytes]...\r\n", 
-		PipeInfo[cPrivate->usbnum][pipeselected[cPrivate->endnum]].ByteTransfered);
+		PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].ByteTransfered);
 	}
-	while((!cPrivate->callback ||(ErrorCallback = cPrivate->callback(cPrivate->data)) == USB_TRUE)
-			&& !Pipe_IsStatusOK(cPrivate->usbnum));
+	while(((ErrorCallback = MSInterfaceInfo->State.IsActive) == USB_TRUE)
+			&& !Pipe_IsStatusOK(MSInterfaceInfo->Config.PortNumber));
 	
-	Pipe_ClearIN(cPrivate->usbnum);
-	if(cPrivate->callback && ErrorCallback != USB_TRUE){
+	Pipe_ClearIN(MSInterfaceInfo->Config.PortNumber);
+	if(ErrorCallback != USB_TRUE){
 		USBDEBUG("CallBack Excute Error Something Happen...\r\n");
 		return USB_REGEN;
 	}
@@ -82,68 +87,64 @@ static uint8_t NXP_BlukPacketSend(nxp_bluk *cPrivate, uint8_t *buffer, uint32_t 
 	return USB_REOK;
 }	
 
-static uint8_t NXP_BlukPacketReceive(nxp_bluk *cPrivate, uint8_t *buffer, uint32_t length)
+static uint8_t NXP_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, uint32_t length)
 {
 	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
-	uint8_t ErrorCallback = 0;
+	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
 
-	if(!cPrivate || !buffer){
+	if(!usbdev || !buffer){
 		return USB_REPARA;
 	}
-	
-	Pipe_SelectPipe(cPrivate->usbnum, cPrivate->endnum);
+	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
+	Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
+				MSInterfaceInfo->Config.DataOUTPipeNumber);
 	Pipe_Unfreeze();
 
-	if ((ErrorCode = Pipe_Write_Stream_LE(cPrivate->usbnum,buffer, length,
-	                                      NULL)) != PIPE_RWSTREAM_NoError){
+	if ((ErrorCode = Pipe_Write_Stream_LE(MSInterfaceInfo->Config.PortNumber, 
+					buffer, length,  NULL)) != PIPE_RWSTREAM_NoError){
 		return ((ErrorCode == PIPE_RWSTREAM_NoError)?USB_REOK:USB_REGEN);
 	}
 	
-	Pipe_ClearOUT(cPrivate->usbnum);
-	Pipe_WaitUntilReady(cPrivate->usbnum);
+	Pipe_ClearOUT(MSInterfaceInfo->Config.PortNumber);
+	Pipe_WaitUntilReady(MSInterfaceInfo->Config.PortNumber);
 	Pipe_Freeze();
-	if(cPrivate->callback && 
-			cPrivate->callback(cPrivate->data) == USB_FALSE){
-		USBDEBUG("CallBack Excute Error Something Happen...\r\n");
-		return USB_REGEN;
-	}
 
 	return USB_REOK;
 }	
 
-static uint8_t NXP_GetDeviceDescriptor(const uint8_t corenum, USB_StdDesDevice_t *DeviceDescriptorData)
+static uint8_t NXP_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData)
 {	
-	if(!DeviceDescriptorData){
+	if(!DeviceDescriptorData || !usbdev){
 		return USB_REPARA;
 	}
-	if(USB_Host_GetDeviceDescriptor(corenum, (USB_Descriptor_Device_t*)DeviceDescriptorData)){
+	if(USB_Host_GetDeviceDescriptor(usbdev->device_address, (USB_Descriptor_Device_t*)DeviceDescriptorData)){
 		USBDEBUG("Error Getting Device Descriptor.\r\n");
 		return USB_REGEN;
 	}
 	return USB_REOK;
 }
 
-static uint8_t NXP_GetDeviceConfigDescriptor(nxp_desconfig *cPrivate, 
+static uint8_t NXP_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint16_t *cfgsize,
 					uint8_t *ConfigDescriptorData, uint16_t ConfigDescriptorDataLen)
 {	
-	if(!ConfigDescriptorData || !cPrivate){
+	if(!ConfigDescriptorData || !usbdev || !cfgsize){
 		return USB_REPARA;
 	}
-	if (USB_Host_GetDeviceConfigDescriptor(cPrivate->usbnum, cPrivate->cfgindex, &cPrivate->cfgnum, 
+	if (USB_Host_GetDeviceConfigDescriptor(usbdev->device_address, index, cfgsize, 
 				ConfigDescriptorData, ConfigDescriptorDataLen) != HOST_GETCONFIG_Successful) {
 		USBDEBUG("Error Retrieving Configuration Descriptor.\r\n");
 		return USB_REGEN;
 	}
-	
+
 	return USB_REOK;
 }
 
-static uint8_t NXP_SetDeviceConfigDescriptor(nxp_desconfig *cPrivate)
+static uint8_t NXP_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex)
 {	
-	if(!cPrivate){
+	if(!usbdev){
 		return USB_REPARA;
 	}
-	if (USB_Host_SetDeviceConfiguration(cPrivate->usbnum, cPrivate->cfgindex) != 
+	if (USB_Host_SetDeviceConfiguration(usbdev->device_address, cfgindex) != 
 				HOST_SENDCONTROL_Successful) {
 		USBDEBUG("Error Setting Device Configuration.\r\n");
 		return USB_REGEN;
@@ -152,24 +153,33 @@ static uint8_t NXP_SetDeviceConfigDescriptor(nxp_desconfig *cPrivate)
 	return USB_REOK;
 }
 
-static uint8_t NXP_ClaimInterface(nxp_clminface *cPrivate)
+static uint8_t NXP_ClaimInterface(usb_device *usbdev, nxp_clminface*cPrivate)
 {
 	USB_Descriptor_Endpoint_t*  DataINEndpoint       = NULL;
 	USB_Descriptor_Endpoint_t*  DataOUTEndpoint      = NULL;
 	USB_Descriptor_Interface_t* MassStorageInterface = NULL;
 	uint8_t portnum = 0;
+	uint16_t ConfigDescriptorSize = 0;
+	uint8_t  ConfigDescriptorData[512];
+	
 
 	if(!cPrivate){
 		return USB_REPARA;
 	}
-	uint16_t ConfigDescriptorSize = cPrivate->ConfigDescriptorSize;
-	void* ConfigDescriptorData = cPrivate->ConfigDescriptorData;	
-	USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(cPrivate->InterfaceInfo);
-
-	if(!ConfigDescriptorData || !MSInterfaceInfo||
+	USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
+	if( !MSInterfaceInfo||
 			!cPrivate->callbackEndpoint || !cPrivate->callbackInterface){
 		return USB_REPARA;
 	}
+	
+	if (USB_Host_GetDeviceConfigDescriptor(MSInterfaceInfo->Config.PortNumber, 
+							1, &ConfigDescriptorSize, ConfigDescriptorData,
+							sizeof(ConfigDescriptorData)) != HOST_GETCONFIG_Successful) {
+		USBDEBUG("Error Retrieving Configuration Descriptor.\r\n");
+		return USB_REGEN;
+	}
+
+
 	portnum = MSInterfaceInfo->Config.PortNumber;
 	memset(&MSInterfaceInfo->State, 0x00, sizeof(MSInterfaceInfo->State));
 
@@ -179,9 +189,9 @@ static uint8_t NXP_ClaimInterface(nxp_clminface *cPrivate)
 
 	while (!(DataINEndpoint) || !(DataOUTEndpoint)){
 		if (!(MassStorageInterface) ||
-				USB_GetNextDescriptorComp(&ConfigDescriptorSize, &ConfigDescriptorData,
+				USB_GetNextDescriptorComp(&ConfigDescriptorSize, (void **)&ConfigDescriptorData,
 						cPrivate->callbackEndpoint) != DESCRIPTOR_SEARCH_COMP_Found){
-			if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, &ConfigDescriptorData,
+			if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, (void **)&ConfigDescriptorData,
 						cPrivate->callbackInterface) != DESCRIPTOR_SEARCH_COMP_Found){
 				return USB_REGEN;
 			}
@@ -239,13 +249,34 @@ static uint8_t NXP_ClaimInterface(nxp_clminface *cPrivate)
 
 	MSInterfaceInfo->State.InterfaceNumber = MassStorageInterface->InterfaceNumber;
 	MSInterfaceInfo->State.IsActive = true;
+	/*Set the usbdev struct*/
+	usbdev->device_address= MSInterfaceInfo->Config.PortNumber;
+	usbdev->wMaxPacketSize = MSInterfaceInfo->State.DataOUTPipeSize;
+	usbdev->ep_in = MSInterfaceInfo->Config.DataINPipeNumber;
+	usbdev->ep_out = MSInterfaceInfo->Config.DataOUTPipeNumber;
+	return USB_REOK;
+}
+static uint8_t NXP_Init(usb_device *usbdev, void *os_priv)
+{
+	USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
+	/*os_priv is USB_ClassInfo_MS_Host_t *MSInterfaceInfo*/
+	if(!usbdev || !os_priv){
+		return USB_REPARA;
+	}
+	usbdev->os_priv = os_priv;	
+	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(os_priv);
+
+	/*Just set device_address == PortNumber*/
+	usbdev->device_address  = MSInterfaceInfo->Config.PortNumber;
 
 	return USB_REOK;
 }
 
+
+
+
+
 #endif
-
-
 
 /*****************************************************************************
  * Public functions
@@ -259,61 +290,69 @@ static uint8_t NXP_ClaimInterface(nxp_clminface *cPrivate)
 *0: Successful
 *>0: Failed
 */
-uint8_t usUsb_SendControlRequest(void *cPrivate, 
+uint8_t usUsb_SendControlRequest(usb_device *usbdev, 
 			uint8_t bmRequestType, uint8_t bRequest, 
-			uint16_t wValue, uint16_t wIndex, uint16_t wLength, const void *data)
+			uint16_t wValue, uint16_t wIndex, uint16_t wLength,  void * data)
 {
 #ifdef NXP_CHIP_18XX
-	if(!cPrivate){
+	if(!usbdev){
 		return 1;
 	}
-	return NXP_SendControlRequest(*((uint8_t*)cPrivate), bmRequestType,
+	return NXP_SendControlRequest(usbdev->device_address, bmRequestType,
 				bRequest, wValue, wIndex, wLength, data);
 #endif
 }
 
-uint8_t usUsb_BlukPacketSend(void *cPrivate, uint8_t *buffer, const uint32_t length)
+uint8_t usUsb_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, const uint32_t length)
 {
 #ifdef NXP_CHIP_18XX
-	return NXP_BlukPacketSend((nxp_bluk *)cPrivate, buffer, length);
+	return NXP_BlukPacketSend(usbdev, buffer, length);
 #endif
 }
 
-uint8_t usUsb_BlukPacketReceive(void *cPrivate, uint8_t *buffer, uint32_t length)
+uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length)
 {
 #ifdef NXP_CHIP_18XX
-	return NXP_BlukPacketReceive((nxp_bluk *)cPrivate, buffer, length);
+	return NXP_BlukPacketReceive(usbdev, buffer, length);
 #endif
 }
 
-uint8_t usUusb_GetDeviceDescriptor(void *cPrivate, USB_StdDesDevice_t *DeviceDescriptorData)
+uint8_t usUusb_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData)
 {
 #ifdef NXP_CHIP_18XX
-	return NXP_GetDeviceDescriptor(*((uint8_t*)cPrivate), DeviceDescriptorData);
+	return NXP_GetDeviceDescriptor(usbdev, DeviceDescriptorData);
 #endif
 }
 
-uint8_t usUusb_GetDeviceConfigDescriptor(void *cPrivate, 
-							uint8_t *ConfigDescriptorData, uint16_t ConfigDescriptorDataLen)
+uint8_t usUusb_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint16_t *cfgsize,
+					uint8_t *ConfigDescriptorData, uint16_t ConfigDescriptorDataLen)
 {
 #ifdef NXP_CHIP_18XX
-	return NXP_GetDeviceConfigDescriptor((nxp_desconfig*)cPrivate, 
+	return NXP_GetDeviceConfigDescriptor(usbdev, index, cfgsize, 
 						ConfigDescriptorData, ConfigDescriptorDataLen);
 #endif
 }
 
-uint8_t usUusb_SetDeviceConfigDescriptor(void *cPrivate)
+uint8_t usUusb_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex)
 {
 #ifdef NXP_CHIP_18XX
-	return NXP_SetDeviceConfigDescriptor((nxp_desconfig*)cPrivate);
+	return NXP_SetDeviceConfigDescriptor(usbdev, cfgindex);
 #endif
 }
 
-uint8_t usUusb_ClaimInterface(void *cPrivate)
+uint8_t usUusb_ClaimInterface(usb_device *usbdev, void *cPrivate)
 {
 #ifdef NXP_CHIP_18XX
-	return NXP_ClaimInterface((nxp_clminface*)cPrivate);
+	return NXP_ClaimInterface(usbdev, (nxp_clminface*)cPrivate);
 #endif
 }
 
+uint8_t usUusb_Init(usb_device *usbdev, void *os_priv)
+{
+#ifdef NXP_CHIP_18XX
+	return NXP_Init(usbdev, os_priv);
+#else
+	return USB_REOK;
+#endif
+}
 

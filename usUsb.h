@@ -12,6 +12,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -94,7 +95,7 @@ typedef struct  {
  * descriptor is documented in section 9.6.3 of the USB 2.0 specification.
  * All multiple-byte fields are represented in host-endian format.
  */
-typedef struct _ USB_StdDesEndpoint_t{
+typedef struct {
 	/** Size of this descriptor (in bytes) */
 	uint8_t  bLength;
 	/** Descriptor type. Will have value
@@ -120,49 +121,40 @@ typedef struct _ USB_StdDesEndpoint_t{
 	uint8_t  bInterval;
 }USB_StdDesEndpoint_t;
 
+typedef struct  {	
+	uint8_t bus_number;
+	uint8_t device_address;
+	uint8_t ep_in, ep_out;
+	int wMaxPacketSize;
+	void *os_priv;
+}usb_device;
 
 
 
 /*NXP LPC18XX usb relative struct*/
-typedef uint8_t (*usbBulkCallback)(void *);
 typedef uint8_t (* ConfigComparator)(void*);
-typedef struct {
-	uint8_t usbnum; /*USB Number*/
-	uint8_t endnum;/*USB Endpoint Number*/
-	uint16_t packetsize; /*Max Packet Size*/
-	usbBulkCallback callback;	/*Callback*/
-	void *data;/*Callback parameter*/
-}nxp_bluk;
-
-typedef struct{
-	uint8_t usbnum; /*USB Number*/
-	uint8_t cfgindex;/*config index*/	
-	uint8_t cfgnum;/*config Number*/
-}nxp_desconfig;
 
 typedef struct {
-	void *InterfaceInfo;
-	void *ConfigDescriptorData;
-	uint16_t ConfigDescriptorSize;
-	ConfigComparator *callbackInterface;	/*Callback*/
-	ConfigComparator *callbackEndpoint;	/*Callback*/
+	ConfigComparator callbackInterface;	/*Callback*/
+	ConfigComparator callbackEndpoint;	/*Callback*/
 }nxp_clminface;
 
 
-uint8_t usUsb_SendControlRequest(void *cPrivate, 
+uint8_t usUsb_SendControlRequest(usb_device *usbdev, 
 			uint8_t bmRequestType, uint8_t bRequest, 
-			uint16_t wValue, uint16_t wIndex, uint16_t wLength, const void *data);
-uint8_t usUsb_BlukPacketSend(void *cPrivate, uint8_t *buffer, const uint32_t length);
-uint8_t usUsb_BlukPacketReceive(void *cPrivate, uint8_t *buffer, uint32_t length);
-uint8_t usUusb_GetDeviceDescriptor(void *cPrivate, USB_StdDesDevice_t *DeviceDescriptorData);
-uint8_t usUusb_GetDeviceConfigDescriptor(void *cPrivate, 
-							uint8_t *ConfigDescriptorData, uint16_t ConfigDescriptorDataLen);
+			uint16_t wValue, uint16_t wIndex, uint16_t wLength, void *data);
+uint8_t usUsb_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, const uint32_t length);
+uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length);
+uint8_t usUusb_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData);
+uint8_t usUusb_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint16_t *cfgsize,
+					uint8_t *ConfigDescriptorData, uint16_t ConfigDescriptorDataLen);
 
-uint8_t usUusb_SetDeviceConfigDescriptor(void *cPrivate);
-uint8_t usUusb_ClaimInterface(void *cPrivate);
-
+uint8_t usUusb_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex);
+uint8_t usUusb_ClaimInterface(usb_device *usbdev, void *cPrivate);
+uint8_t usUusb_Init(usb_device *usbdev, void *os_priv);
 
 #ifdef __cplusplus
 }
+#endif
 #endif
 
