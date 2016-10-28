@@ -19,6 +19,10 @@ extern "C" {
 #endif
 
 uint8_t usDisk_DeviceDetect(void *os_priv);
+uint8_t usDisk_DeviceDisConnect(void);
+uint8_t usDisk_DiskReadSectors(void *buff, uint32_t secStart, uint32_t numSec);
+uint8_t usDisk_DiskWriteSectors(void *buff, uint32_t secStart, uint32_t numSec);
+uint8_t usDisk_DiskNum(void);
 
 #ifdef __cplusplus
 }

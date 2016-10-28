@@ -25,7 +25,7 @@ enum{
 #if defined(DEBUG_ENABLE)
 #define USBDEBUG(...) do {printf("[USB Mod]");printf(__VA_ARGS__);} while(0)
 #else
-#define PRODEBUG(...)
+#define USBDEBUG(...)
 #endif
 
 #define USB_TRUE		1

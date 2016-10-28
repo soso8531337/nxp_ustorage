@@ -593,7 +593,7 @@ static uint8_t NXP_COMPFUNC_IOS_CLASS(void* const CurrentDescriptor)
 }
 
 
-static uint8_t DCOMP_MS_Host_NextMSInterfaceEndpoint(void* const CurrentDescriptor)
+uint8_t DCOMP_MS_Host_NextMSInterfaceEndpoint(void* const CurrentDescriptor)
 {
 	USB_Descriptor_Header_t* Header = DESCRIPTOR_PCAST(CurrentDescriptor, USB_Descriptor_Header_t);
 
@@ -943,6 +943,11 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 	}
 	PRODEBUG("Phone Change to CONNCETING State.\r\n");
 	
+	return PROTOCOL_REOK;
+}
+uint8_t usProtocol_DeviceDisConnect(void)
+{
+	memset(&uSinfo, 0, sizeof(uSinfo));
 	return PROTOCOL_REOK;
 }
 

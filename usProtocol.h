@@ -56,6 +56,7 @@ enum {
 
 uint8_t usProtocol_DeviceDetect(void *os_priv);
 uint8_t usProtocol_ConnectPhone(void);
+uint8_t usProtocol_DeviceDisConnect(void);
 uint8_t usProtocol_SendPackage(void *buffer, uint32_t size);
 uint8_t usProtocol_RecvPackage(void **buffer, uint32_t tsize, uint32_t *rsize);
 
