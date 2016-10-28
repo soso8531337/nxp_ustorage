@@ -7,8 +7,8 @@
  */
 
 
-#ifndef __USUSB_H_
-#define __USUSB_H_
+#ifndef __USDISK_H_
+#define __USDISK_H_
 
 #include <ctype.h>
 #include <stdio.h>
@@ -121,6 +121,61 @@ typedef struct {
 	uint8_t  bInterval;
 }USB_StdDesEndpoint_t;
 
+typedef  struct{
+	uint8_t  ResponseCode;
+	uint8_t  SegmentNumber;
+	unsigned SenseKey			 : 4;
+	unsigned Reserved			 : 1;
+	unsigned ILI				 : 1;
+	unsigned EOM				 : 1;
+	unsigned FileMark			 : 1;
+
+	uint8_t  Information[4];
+	uint8_t  AdditionalLength;
+	uint8_t  CmdSpecificInformation[4];
+	uint8_t  AdditionalSenseCode;
+	uint8_t  AdditionalSenseQualifier;
+	uint8_t  FieldReplaceableUnitCode;
+	uint8_t  SenseKeySpecific[3];
+} SCSI_Sense_Response_t;
+
+
+typedef  struct{
+	unsigned DeviceType 		 : 5;
+	unsigned PeripheralQualifier : 3;
+
+	unsigned Reserved			 : 7;
+	unsigned Removable			 : 1;
+
+	uint8_t  Version;
+
+	unsigned ResponseDataFormat  : 4;
+	unsigned Reserved2			 : 1;
+	unsigned NormACA			 : 1;
+	unsigned TrmTsk 			 : 1;
+	unsigned AERC				 : 1;
+
+	uint8_t  AdditionalLength;
+	uint8_t  Reserved3[2];
+
+	unsigned SoftReset			 : 1;
+	unsigned CmdQue 			 : 1;
+	unsigned Reserved4			 : 1;
+	unsigned Linked 			 : 1;
+	unsigned Sync				 : 1;
+	unsigned WideBus16Bit		 : 1;
+	unsigned WideBus32Bit		 : 1;
+	unsigned RelAddr			 : 1;
+
+	uint8_t  VendorID[8];
+	uint8_t  ProductID[16];
+	uint8_t  RevisionID[4];
+}SCSI_Inquiry_t;
+
+
+
+
+
 typedef struct  {	
 	uint8_t bus_number;
 	uint8_t device_address;
@@ -135,6 +190,7 @@ typedef struct  {
 typedef uint8_t (* ConfigComparator)(void*);
 
 typedef struct {
+	uint8_t bNumConfigurations;
 	ConfigComparator callbackInterface;	/*Callback*/
 	ConfigComparator callbackEndpoint;	/*Callback*/
 }nxp_clminface;
@@ -145,13 +201,25 @@ uint8_t usUsb_SendControlRequest(usb_device *usbdev,
 			uint16_t wValue, uint16_t wIndex, uint16_t wLength, void *data);
 uint8_t usUsb_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, const uint32_t length);
 uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length);
-uint8_t usUusb_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData);
-uint8_t usUusb_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint16_t *cfgsize,
+uint8_t usUsb_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData);
+uint8_t usUsb_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint16_t *cfgsize,
 					uint8_t *ConfigDescriptorData, uint16_t ConfigDescriptorDataLen);
 
-uint8_t usUusb_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex);
-uint8_t usUusb_ClaimInterface(usb_device *usbdev, void *cPrivate);
-uint8_t usUusb_Init(usb_device *usbdev, void *os_priv);
+uint8_t usUsb_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex);
+uint8_t usUsb_ClaimInterface(usb_device *usbdev, void *cPrivate);
+uint8_t usUsb_Init(usb_device *usbdev, void *os_priv);
+void usUsb_Print(uint8_t *buffer, int length);
+uint8_t usUsb_DiskReadSectors(usb_device *usbdev, 
+				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize);
+uint8_t usUsb_DiskWriteSectors(usb_device *usbdev, 
+				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize);
+uint8_t usUsb_GetMaxLUN(usb_device *usbdev, uint8_t *LunIndex);
+uint8_t usUsb_ResetMSInterface(usb_device *usbdev);
+uint8_t usUsb_RequestSense(usb_device *usbdev,
+						uint8_t index, SCSI_Sense_Response_t *SenseData);
+uint8_t usUsb_GetInquiryData(usb_device *usbdev,
+						uint8_t index, SCSI_Inquiry_t *InquiryData);
+uint8_t usUsb_ReadDeviceCapacity(usb_device *usbdev, uint32_t *Blocks, uint32_t *BlockSize);
 
 #ifdef __cplusplus
 }

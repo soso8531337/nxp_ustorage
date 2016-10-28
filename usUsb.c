@@ -291,9 +291,141 @@ static uint8_t NXP_Init(usb_device *usbdev, void *os_priv)
 	return USB_REOK;
 }
 
+uint8_t NXP_DiskReadSectors(usb_device *usbdev, 
+				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+	int ret;
+	
+	ret = MS_Host_ReadDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+						secStart, numSec, BlockSize, buff);
+	if(ret) {
+		USBDEBUG("Error reading device block. ret = %d\r\n", ret);
+		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+		return USB_REGEN;
+	}
+	return USB_REOK;
+}
 
+uint8_t NXP_DiskWriteSectors(usb_device *usbdev, 
+					void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+	int ret;
+	ret = MS_Host_WriteDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+						secStart, numSec, BlockSize, buff);
+	if(ret) {
+		USBDEBUG("Error writing device block. ret = %d\r\n", ret);
+		return USB_REGEN;
+	}
+	return USB_REOK;
+}
+uint8_t NXP_GetMaxLUN(usb_device *usbdev, uint8_t *LunIndex)
+{
+	USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
+	/*os_priv is USB_ClassInfo_MS_Host_t *MSInterfaceInfo*/
+	if(!usbdev || !LunIndex){
+		return USB_REPARA;
+	}
+	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
 
+	if (MS_Host_GetMaxLUN(MSInterfaceInfo, LunIndex)) {
+		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+		return USB_REGEN;
+	}
 
+	return USB_REOK;
+}
+
+uint8_t NXP_ResetMSInterface(usb_device *usbdev)
+{
+	USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
+	/*os_priv is USB_ClassInfo_MS_Host_t *MSInterfaceInfo*/
+	if(!usbdev){
+		return USB_REPARA;
+	}
+	
+	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
+
+	if (MS_Host_ResetMSInterface(MSInterfaceInfo)) {
+		USBDEBUG("Error resetting Mass Storage interface.\r\n");
+		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+		return USB_REGEN;
+	}
+	
+	return USB_REOK;	
+}
+
+uint8_t NXP_RequestSense(usb_device *usbdev, 
+				uint8_t index, SCSI_Sense_Response_t *SenseData)
+{
+	USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
+	/*os_priv is USB_ClassInfo_MS_Host_t *MSInterfaceInfo*/
+	if(!usbdev || !SenseData){
+		return USB_REPARA;
+	}
+	
+	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
+
+	if (MS_Host_RequestSense(MSInterfaceInfo, index, SenseData) != 0) {
+		USBDEBUG("Error retrieving device sense.\r\n");
+		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+		return USB_REGEN;
+	}
+	
+	return USB_REOK;	
+}
+
+uint8_t NXP_GetInquiryData(usb_device *usbdev,
+						uint8_t index, SCSI_Inquiry_t *InquiryData)
+{
+	USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
+	/*os_priv is USB_ClassInfo_MS_Host_t *MSInterfaceInfo*/
+	if(!usbdev || !InquiryData){
+		return USB_REPARA;
+	}
+	
+	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
+
+	if (MS_Host_GetInquiryData(MSInterfaceInfo, index, InquiryData) != 0) {
+		USBDEBUG("Error retrieving device Inquiry.\r\n");
+		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+		return USB_REGEN;
+	}
+	
+	return USB_REOK;
+}
+
+uint8_t NXP_ReadDeviceCapacity(usb_device *usbdev, uint32_t *Blocks, uint32_t *BlockSize)
+{
+	SCSI_Capacity_t DiskCapacity;
+	USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
+	/*os_priv is USB_ClassInfo_MS_Host_t *MSInterfaceInfo*/
+	if(!usbdev || !Blocks|| !BlockSize){
+		return USB_REPARA;
+	}
+	
+	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
+	for (;; ) {
+		uint8_t ErrorCode = MS_Host_TestUnitReady(MSInterfaceInfo, 0);
+		if (!(ErrorCode)) {
+			break;
+		}
+		/* Check if an error other than a logical command error (device busy) received */
+		if (ErrorCode != MS_ERROR_LOGICAL_CMD_FAILED) {
+			USBDEBUG("Failed\r\n");
+			USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+			return USB_REGEN;
+		}
+	}
+	if (MS_Host_ReadDeviceCapacity(MSInterfaceInfo, 0, &DiskCapacity)) {
+		USBDEBUG("Error retrieving device capacity.\r\n");
+		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+		return USB_REGEN;
+	}
+	*Blocks = DiskCapacity.Blocks;
+	*BlockSize = DiskCapacity.BlockSize;
+	
+	return USB_REOK;
+}
 
 #endif
 
@@ -336,14 +468,14 @@ uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t le
 #endif
 }
 
-uint8_t usUusb_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData)
+uint8_t usUsb_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData)
 {
 #ifdef NXP_CHIP_18XX
 	return NXP_GetDeviceDescriptor(usbdev, DeviceDescriptorData);
 #endif
 }
 
-uint8_t usUusb_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint16_t *cfgsize,
+uint8_t usUsb_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint16_t *cfgsize,
 					uint8_t *ConfigDescriptorData, uint16_t ConfigDescriptorDataLen)
 {
 #ifdef NXP_CHIP_18XX
@@ -352,21 +484,63 @@ uint8_t usUusb_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint
 #endif
 }
 
-uint8_t usUusb_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex)
+uint8_t usUsb_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex)
 {
 #ifdef NXP_CHIP_18XX
 	return NXP_SetDeviceConfigDescriptor(usbdev, cfgindex);
 #endif
 }
 
-uint8_t usUusb_ClaimInterface(usb_device *usbdev, void *cPrivate)
+uint8_t usUsb_ClaimInterface(usb_device *usbdev, void *cPrivate)
 {
 #ifdef NXP_CHIP_18XX
 	return NXP_ClaimInterface(usbdev, (nxp_clminface*)cPrivate);
 #endif
 }
 
-uint8_t usUusb_Init(usb_device *usbdev, void *os_priv)
+uint8_t usUsb_GetMaxLUN(usb_device *usbdev, uint8_t *LunIndex)
+{
+#ifdef NXP_CHIP_18XX
+	return NXP_GetMaxLUN(usbdev, LunIndex);
+#endif
+}
+
+uint8_t usUsb_ResetMSInterface(usb_device *usbdev)
+{
+#ifdef NXP_CHIP_18XX
+		return NXP_ResetMSInterface(usbdev);
+#endif
+}
+
+uint8_t usUsb_RequestSense(usb_device *usbdev,
+						uint8_t index, SCSI_Sense_Response_t *SenseData)
+{
+#ifdef NXP_CHIP_18XX
+		return NXP_RequestSense(usbdev, index, SenseData);
+#endif
+}
+
+uint8_t usUsb_GetInquiryData(usb_device *usbdev,
+						uint8_t index, SCSI_Inquiry_t *InquiryData)
+{
+#ifdef NXP_CHIP_18XX
+	return NXP_GetInquiryData(usbdev, index, InquiryData);
+#endif
+}
+
+uint8_t usUsb_ReadDeviceCapacity(usb_device *usbdev, uint32_t *Blocks, uint32_t *BlockSize)
+{
+#ifdef NXP_CHIP_18XX
+	return NXP_ReadDeviceCapacity(usbdev, Blocks, BlockSize);
+#endif
+}
+
+
+
+
+
+
+uint8_t usUsb_Init(usb_device *usbdev, void *os_priv)
 {
 #ifdef NXP_CHIP_18XX
 	return NXP_Init(usbdev, os_priv);
@@ -375,7 +549,23 @@ uint8_t usUusb_Init(usb_device *usbdev, void *os_priv)
 #endif
 }
 
-void usUusb_Print(uint8_t *buffer, int length)
+uint8_t usUsb_DiskReadSectors(usb_device *usbdev, 
+				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+#ifdef NXP_CHIP_18XX
+		return NXP_DiskReadSectors(usbdev, secStart, numSec, BlockSize);
+#endif
+}
+
+uint8_t usUsb_DiskWriteSectors(usb_device *usbdev, 
+				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+#ifdef NXP_CHIP_18XX
+		return NXP_DiskWriteSectors(usbdev, secStart, numSec, BlockSize);
+#endif
+}
+
+void usUsb_Print(uint8_t *buffer, int length)
 {
 	int cur = 0;
 	
