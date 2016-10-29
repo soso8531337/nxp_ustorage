@@ -182,14 +182,14 @@ static uint8_t NXP_ClaimInterface(usb_device *usbdev, nxp_clminface*cPrivate)
 		if (DESCRIPTOR_TYPE(ConfigDescriptorData) != DTYPE_Configuration){
 			continue;
 		}		
-		usUusb_Print(ConfigDescriptorData, ConfigDescriptorSize); 
+		usUsb_Print(ConfigDescriptorData, ConfigDescriptorSize); 
 		/*Set array name to point var, USB_GetNextDescriptorComp will change point*/
 		PtrConfigDescriptorData = ConfigDescriptorData;		
 		while (!(DataINEndpoint) || !(DataOUTEndpoint)){
 			if (!(MassStorageInterface) ||
-					USB_GetNextDescriptorComp(&ConfigDescriptorSize, &PtrConfigDescriptorData,
+					USB_GetNextDescriptorComp(&ConfigDescriptorSize, (void **)&PtrConfigDescriptorData,
 							cPrivate->callbackEndpoint) != DESCRIPTOR_SEARCH_COMP_Found){
-				if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, &PtrConfigDescriptorData,
+				if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, (void **)&PtrConfigDescriptorData,
 							cPrivate->callbackInterface) != DESCRIPTOR_SEARCH_COMP_Found){
 					DataINEndpoint	= NULL;
 					DataOUTEndpoint = NULL;
@@ -365,7 +365,8 @@ uint8_t NXP_RequestSense(usb_device *usbdev,
 	
 	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
 
-	if (MS_Host_RequestSense(MSInterfaceInfo, index, SenseData) != 0) {
+	if (MS_Host_RequestSense(MSInterfaceInfo, index, 
+					(SCSI_Request_Sense_Response_t*)SenseData) != 0) {
 		USBDEBUG("Error retrieving device sense.\r\n");
 		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
 		return USB_REGEN;
@@ -385,7 +386,7 @@ uint8_t NXP_GetInquiryData(usb_device *usbdev,
 	
 	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
 
-	if (MS_Host_GetInquiryData(MSInterfaceInfo, index, InquiryData) != 0) {
+	if (MS_Host_GetInquiryData(MSInterfaceInfo, index, (SCSI_Inquiry_Response_t*)InquiryData) != 0) {
 		USBDEBUG("Error retrieving device Inquiry.\r\n");
 		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
 		return USB_REGEN;
@@ -553,7 +554,7 @@ uint8_t usUsb_DiskReadSectors(usb_device *usbdev,
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 #ifdef NXP_CHIP_18XX
-		return NXP_DiskReadSectors(usbdev, secStart, numSec, BlockSize);
+		return NXP_DiskReadSectors(usbdev, buff, secStart, numSec, BlockSize);
 #endif
 }
 
@@ -561,7 +562,7 @@ uint8_t usUsb_DiskWriteSectors(usb_device *usbdev,
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 #ifdef NXP_CHIP_18XX
-		return NXP_DiskWriteSectors(usbdev, secStart, numSec, BlockSize);
+		return NXP_DiskWriteSectors(usbdev, buff, secStart, numSec, BlockSize);
 #endif
 }
 

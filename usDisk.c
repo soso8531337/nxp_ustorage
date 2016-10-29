@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include "usDisk.h"
 #include "usUsb.h"
+#include "MassStorageHost.h"
 
 
 #define MSC_FTRANS_CLASS				0x08
@@ -22,6 +23,12 @@
 #define DSKDEBUG(...)
 #endif
 
+enum{
+	DISK_REOK=0,
+	DISK_REPARA,
+	DISK_REGEN,
+	DISK_REINVAILD
+};
 
 typedef struct {
 	uint8_t disknum;
@@ -67,7 +74,7 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 	memset(&DeviceDescriptorData, 0, sizeof(USB_StdDesDevice_t));
 	if(usUsb_GetDeviceDescriptor(usbdev, &DeviceDescriptorData)){
 		DSKDEBUG("usUusb_GetDeviceDescriptor Failed\r\n");
-		return PROTOCOL_REGEN;
+		return DISK_REGEN;
 	}
 	/*Set callback*/
 	nxpcall.callbackInterface = NXP_COMPFUNC_MSC_CLASS;
@@ -76,78 +83,80 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 	nxpcall.bNumConfigurations = DeviceDescriptorData.bNumConfigurations;
 	if(usUsb_ClaimInterface(usbdev, &nxpcall)){
 		DSKDEBUG("Attached Device Not a Valid DiskDevice.\r\n");
-		return PROTOCOL_REINVAILD;
+		return DISK_REINVAILD;
 	}
 
 	if(usUsb_GetMaxLUN(usbdev, &MaxLUNIndex)){		
 		DSKDEBUG("Get LUN Failed\r\n");
-		return PROTOCOL_REINVAILD;
+		return DISK_REINVAILD;
 	}
 	DSKDEBUG(("Total LUNs: %d - Using first LUN in device.\r\n"), (MaxLUNIndex + 1));
 	if(usUsb_ResetMSInterface(usbdev)){		
 		DSKDEBUG("ResetMSInterface Failed\r\n");
-		return PROTOCOL_REINVAILD;
+		return DISK_REINVAILD;
 	}	
 	SCSI_Sense_Response_t SenseData;
 	if(usUsb_RequestSense(usbdev, 0, &SenseData)){
 		DSKDEBUG("RequestSense Failed\r\n");
-		return PROTOCOL_REINVAILD;
+		return DISK_REINVAILD;
 	}
 
 	SCSI_Inquiry_t InquiryData;
 	if(usUsb_GetInquiryData(usbdev, 0, &InquiryData)){
 		DSKDEBUG("GetInquiryData Failed\r\n");
-		return PROTOCOL_REINVAILD;
+		return DISK_REINVAILD;
 	}
 
 	if(usUsb_ReadDeviceCapacity(usbdev, &uDinfo.Blocks, &uDinfo.BlockSize)){
 		DSKDEBUG("ReadDeviceCapacity Failed\r\n");
-		return PROTOCOL_REINVAILD;
+		return DISK_REINVAILD;
 	}
 	DSKDEBUG("Mass Storage Device Enumerated.\r\n");
 	uDinfo.disknum=1;
-	return PROTOCOL_REGEN;
+	
+	return DISK_REGEN;
 }
 
 uint8_t usDisk_DeviceDisConnect(void)
 {
 	memset(&uDinfo, 0, sizeof(uDinfo));
-	return PROTOCOL_REOK;
+	return DISK_REOK;
 }
 uint8_t usDisk_DiskReadSectors(void *buff, uint32_t secStart, uint32_t numSec)
 {
 	if(!buff || !uDinfo.disknum){
 		DSKDEBUG("DiskReadSectors Failed[DiskNum:%d].\r\n", uDinfo.disknum);
-		return PROTOCOL_REPARA;
+		return DISK_REPARA;
 	}
 	if(usUsb_DiskReadSectors(&uDinfo.diskdev, 
 			buff, secStart,numSec, uDinfo.BlockSize)){
 		DSKDEBUG("DiskReadSectors Failed[DiskNum:%d secStart:%d numSec:%d].\r\n", 
 						uDinfo.disknum, secStart, numSec);
-		return PROTOCOL_REGEN;
+		return DISK_REGEN;
 	}
 	
 	DSKDEBUG("DiskReadSectors Successful[DiskNum:%d secStart:%d numSec:%d].\r\n", 
 					uDinfo.disknum, secStart, numSec);
-	return PROTOCOL_REOK;
+	return DISK_REOK;
 }
 
 uint8_t usDisk_DiskWriteSectors(void *buff, uint32_t secStart, uint32_t numSec)
 {
 	if(!buff || !uDinfo.disknum){
 		DSKDEBUG("DiskWriteSectors Failed[DiskNum:%d].\r\n", uDinfo.disknum);
-		return PROTOCOL_REPARA;
+		return DISK_REPARA;
 	}
 	
-	if(usUsb_DiskWriteSectors){
+	if(usUsb_DiskWriteSectors(&uDinfo.diskdev, 
+				buff, secStart,numSec, uDinfo.BlockSize)){
 		DSKDEBUG("DiskWriteSectors Failed[DiskNum:%d secStart:%d numSec:%d].\r\n", 
 						uDinfo.disknum, secStart, numSec);
-		return PROTOCOL_REGEN;
+		return DISK_REGEN;
 	}
 	
 	DSKDEBUG("DiskWriteSectors Successful[DiskNum:%d secStart:%d numSec:%d].\r\n", 
 					uDinfo.disknum, secStart, numSec);
-	return PROTOCOL_REOK;	
+	return DISK_REOK;	
 }
 
 uint8_t usDisk_DiskNum(void)

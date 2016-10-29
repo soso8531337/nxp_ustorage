@@ -16,6 +16,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#define min(x, y)				(((x) < (y)) ? (x) : (y))
 
 #define htons(A)        ((((uint16_t)(A) & 0xff00) >> 8) | \
                                                    (((uint16_t)(A) & 0x00ff) << 8))
@@ -59,7 +60,7 @@ uint8_t usProtocol_ConnectPhone(void);
 uint8_t usProtocol_DeviceDisConnect(void);
 uint8_t usProtocol_SendPackage(void *buffer, uint32_t size);
 uint8_t usProtocol_RecvPackage(void **buffer, uint32_t tsize, uint32_t *rsize);
-
+uint8_t usProtocol_GetAvaiableBuffer(void **buffer, uint32_t *size);
 
 #ifdef __cplusplus
 }

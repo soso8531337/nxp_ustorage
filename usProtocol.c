@@ -91,7 +91,7 @@ static struct accessory_t acc_default = {
 #define IOS_DEFAULT_WIN			(8*1024)
 #define USB_MTU	IOS_DEFAULT_WIN
 #define MPACKET_SIZE			(512)	/*Small packets size limited*/
-#define IOS_PROHEADER	(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct version_header))
+#define IOS_PROHEADER(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct version_header))
 
 #ifndef IPPROTO_TCP
 #define IPPROTO_TCP 		6
@@ -129,7 +129,6 @@ enum{
 #else
 #define PRODEBUG(...)
 #endif
-#define min(x, y)				(((x) < (y)) ? (x) : (y))
 
 struct tcphdr{
 	uint16_t th_sport;         /* source port */
@@ -212,83 +211,6 @@ static uint16_t find_sport(void)
 		tcport = 0;
 	}
 	return (++tcport);
-}
-
-static int send_packet(mux_itunes *dev, enum mux_protocol proto, void *header, const void *data, int length)
-{
-	uint8_t buffer[512] = {0};
-	int hdrlen;
-	int res;
-
-	switch(proto) {
-		case MUX_PROTO_VERSION:
-			hdrlen = sizeof(struct version_header);
-			break;
-		case MUX_PROTO_SETUP:
-			hdrlen = 0;
-			break;
-		case MUX_PROTO_TCP:
-			hdrlen = sizeof(struct tcphdr);
-			break;
-		default:
-			PRODEBUG("Invalid protocol %d for outgoing packet (hdr %p data %p len %d)\r\n", proto, header, data, length);	
-			return -1;
-	}
-	PRODEBUG("send_packet(0x%x, %p, %p, %d)\r\n", proto, header, data, length);
-
-	int mux_header_size = ((dev->version < 2) ? 8 : sizeof(struct mux_header));
-
-	int total = mux_header_size + hdrlen + length;
-
-	if(total > sizeof(buffer)){
-		PRODEBUG("Tried to send setup packet larger than 512Bytes (hdr %d data %d total %d) to device\r\n", 
-							hdrlen, length, total);
-		return -1;
-	}
-	struct mux_header *mhdr = (struct mux_header *)buffer;
-	mhdr->protocol = htonl(proto);
-	mhdr->length = htonl(total);
-	if (dev->version >= 2) {
-		mhdr->magic = htonl(0xfeedface);
-		if (proto == MUX_PROTO_SETUP) {
-			dev->tx_seq = 0;
-			dev->rx_seq = 0xFFFF;
-		}
-		mhdr->tx_seq = htons(dev->tx_seq);
-		mhdr->rx_seq = htons(dev->rx_seq);
-		dev->tx_seq++;
-	}
-	memcpy(buffer + mux_header_size, header, hdrlen);
-
-	dev->ib_used = mux_header_size + hdrlen;
-	if(data && total > dev->ib_capacity){
-		uint16_t sndsize = 0, packetSize;
-		void *ptr = data;
-		while(sndsize < total){
-			packetSize = min(total-sndsize, dev->ib_capacity-dev->ib_used);
-			memcpy(buffer + dev->ib_used, ptr+sndsize, packetSize);
-			if((res = usUsb_BlukPacketSend(&(dev->usbdev), buffer, dev->ib_used+packetSize)) < 0) {
-				PRODEBUG("usb_send failed while sending packet (len %d) to device: %d\r\n",  
-							dev->ib_used+packetSize, res);
-				dev->ib_used = 0;
-				return res;
-			}
-			dev->ib_used -= res;
-			sndsize+= res;
-			PRODEBUG("fragment sending packet ok(len %d) to device: %d\r\n", total, res);	
-		}
-	}else{
-		if(data && length)
-			memcpy(buffer + dev->ib_used, data, length);
-		if((res = usUsb_BlukPacketSend(&(dev->usbdev), buffer, total)) < 0) {
-			PRODEBUG("usb_send failed while sending packet (len %d) to device: %d\r\n", total, res);
-			dev->ib_used = 0;
-			return res;
-		}
-		PRODEBUG("sending packet ok(len %d) to device: %d\r\n", total, res);
-	}
-	dev->ib_used = 0;
-	return total;
 }
 /*
 *send_small_packet function not used the global buffer,
@@ -473,7 +395,7 @@ static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32
 	}
 	/*Send ios package*/
 	if(send_tcp(uSdev, TH_ACK, buffer, size) < 0){
-		PRODEBUG("usProtocol_iosSendPackage Error[%d]:%p Size:%d\r\n", res, buffer, size);
+		PRODEBUG("usProtocol_iosSendPackage Error:%p Size:%d\r\n", buffer, size);
 		return PROTOCOL_REGEN;
 	}
 	
@@ -490,7 +412,7 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 	uint8_t *tbuffer = uSdev->ib_buf;
 	uint32_t Recvsize = 0;
 	if(!uSdev || !buffer){
-		return PROGMEM;
+		return PROTOCOL_REGEN;
 	}
 	*rsize = 0;
 	if(tsize == 0){
@@ -500,7 +422,7 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 		/*Receive Header*/
 		if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, sizeof(struct scsi_head))){
 			PRODEBUG("Receive aoa Package Header Error\r\n");
-			return PROGMEM;
+			return PROTOCOL_REGEN;
 		}
 		hdr = (struct scsi_head *)tbuffer;
 		uSdev->protlen = hdr->len+sizeof(struct scsi_head);
@@ -511,7 +433,7 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 			if(hdr->len && 
 					usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, hdr->len)){
 				PRODEBUG("Receive aoa Package Header Error\r\n");
-				return PROGMEM;
+				return PROTOCOL_REGEN;
 			}
 			*buffer = uSdev->ib_buf;
 			*rsize = uSdev->protlen;
@@ -526,7 +448,7 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 	PRODEBUG("Prepare Receive aoa Package %d\r\n", Recvsize);
 	if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, Recvsize)){
 		PRODEBUG("Receive aoa Package Header Error\r\n");
-		return PROGMEM;
+		return PROTOCOL_REGEN;
 	}
 	*buffer = uSdev->ib_buf;
 	*rsize += Recvsize;
@@ -625,7 +547,7 @@ static uint8_t NXP_SwitchAOAMode(usb_device *usbdev)
 	}
 	memset(&MSInterfaceInfo->State, 0x00, sizeof(MSInterfaceInfo->State));
 
-	if(usUusb_GetDeviceConfigDescriptor(usbdev, 1, &ConfigDescriptorSize, 
+	if(usUsb_GetDeviceConfigDescriptor(usbdev, 1, &ConfigDescriptorSize, 
 						ConfigDescriptorData, sizeof(ConfigDescriptorData))){
 		PRODEBUG("Get Device ConfigDescriptor Error..\r\n");
 		return PROTOCOL_REGEN;
@@ -637,7 +559,7 @@ static uint8_t NXP_SwitchAOAMode(usb_device *usbdev)
 	/*Found Interface Class */
 	/*Must Set to var, the funciton will change the point*/
 	PtrConfigDescriptorData = ConfigDescriptorData;
-	if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, &PtrConfigDescriptorData,
+	if (USB_GetNextDescriptorComp(&ConfigDescriptorSize, (void **)&PtrConfigDescriptorData,
 				NXP_FILTERFUNC_AOA_CLASS) != DESCRIPTOR_SEARCH_COMP_Found){		
 		PRODEBUG("Attached Device Not a Valid AOA Device[NO 0xff Interface].\r\n");
 		return PROTOCOL_REGEN;

@@ -5,10 +5,8 @@
  * All rights reserved.
  *
  */
-
-
-#ifndef __USDISK_H_
-#define __USDISK_H_
+#ifndef __USUSB_H_
+#define __USUSB_H_
 
 #include <ctype.h>
 #include <stdio.h>

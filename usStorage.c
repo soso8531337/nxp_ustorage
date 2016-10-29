@@ -37,16 +37,17 @@
 #include "usUsb.h"
 #include "usDisk.h"
 #include "usProtocol.h"
+#include "usSys.h"
 /*****************************************************************************
  * Private types/enumerations/variables
  ****************************************************************************/
 #if defined(DEBUG_ENABLE)
-#define DEBUGOUT(...) do {printf("[Storage Mod]");printf(__VA_ARGS__);} while(0)
+#define SDEBUGOUT(...) do {printf("[Storage Mod]");printf(__VA_ARGS__);} while(0)
 #else
-#define DEBUGOUT(...)
+#define SDEBUGOUT(...)
 #endif
 
-
+#define USS_HEADER			(sizeof(struct scsi_head))
 
 /** LPCUSBlib Mass Storage Class driver interface configuration and state information. This structure is
  *  passed to all Mass Storage Class driver functions, so that multiple instances of the same class
@@ -118,6 +119,58 @@ static void SetupHardware(void)
  ****************************************************************************/
 static int usStorage_diskREAD(struct scsi_head *header)
 {
+	uint8_t *buffer = NULL;
+	uint32_t size = 0, rsize = 0, avsize = 0;
+	int32_t addr = 0;
+
+	if(!header){
+		SDEBUGOUT("usStorage_diskREAD Parameter Failed\r\n");
+		return 1;
+	}
+	addr = header->addr;
+	
+	if(usProtocol_GetAvaiableBuffer((void **)&buffer, &size)){
+		SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
+		return 1;
+	}
+	memcpy(buffer, header, USS_HEADER);
+	/*Send To Phone*/
+	if(usProtocol_SendPackage(buffer, USS_HEADER)){
+		SDEBUGOUT("Send To Phone[Just Header Error]\r\n");
+		return 1;
+	}
+	if(!header->len){		
+		SDEBUGOUT("Send Header Successful\r\n");
+		return 0;
+	}
+	while(rsize < header->len){
+		uint32_t secCount = 0;
+		if(usProtocol_GetAvaiableBuffer((void **)&buffer, &size)){
+			SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
+			return 1;
+		}
+		SDEBUGOUT("AvaiableBuffer 0x%p[%dBytes][DiskSector:%d DiskReadLen:%d]\r\n", 
+						buffer, size, header->addr, header->len);
+
+		avsize = min(512*(size /512), header->len-rsize); /*We leave a sector for safe*/		
+		secCount = avsize/512;
+		if(usDisk_DiskReadSectors(buffer+rsize, addr, secCount)){
+			SDEBUGOUT("Read Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
+					rsize, addr, secCount);
+			return 1;
+		}
+		/*Send To Phone*/
+		if(usProtocol_SendPackage(buffer, avsize)){
+			SDEBUGOUT("Send To Phone[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
+					rsize, addr, secCount);
+			return 1;
+		}
+		
+		SDEBUGOUT("UPDate Sector------>%d-->%d\r\n",addr, addr +secCount);
+		addr += secCount;
+		rsize += avsize;
+	}
+	
 	return 0;
 }
 
@@ -132,11 +185,11 @@ static int usStorage_diskLUN(struct scsi_head *header)
 	uint8_t *buffer = NULL;
 	uint32_t size = 0, total = 0;
 
-	if(usProtocol_GetAvaiableBuffer(&buffer, &size)){
-		DEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
+	if(usProtocol_GetAvaiableBuffer((void **)&buffer, &size)){
+		SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
 		return 1;
 	}	
-	DEBUGOUT("AvaiableBuffer 0x%p[%dBytes][Disk:%d]\r\n", 
+	SDEBUGOUT("AvaiableBuffer 0x%p[%dBytes][Disk:%d]\r\n", 
 				buffer, size, num);
 	
 	total = sizeof(struct scsi_head);
@@ -145,10 +198,10 @@ static int usStorage_diskLUN(struct scsi_head *header)
 	total += 1;
 	
 	if(usProtocol_SendPackage(buffer, total)){
-		DEBUGOUT("usProtocol_SendPackage Failed\r\n");
+		SDEBUGOUT("usProtocol_SendPackage Failed\r\n");
 		return 1;
 	}
-	DEBUGOUT("usStorage_diskLUN Successful[DiskNumber %d]\r\n", num);
+	SDEBUGOUT("usStorage_diskLUN Successful[DiskNumber %d]\r\n", num);
 	return 0;
 }
 
@@ -158,30 +211,30 @@ static int usStorage_Handle(void)
 	uint32_t size=0;
 	struct scsi_head header;
 
-	if(usProtocol_RecvPackage(&buffer, hsize, &size)){
-		DEBUGOUT("usProtocol_RecvPackage Failed\r\n");
+	if(usProtocol_RecvPackage((void **)&buffer, 0, &size)){
+		SDEBUGOUT("usProtocol_RecvPackage Failed\r\n");
 		return 1;
 	}
 	memcpy(&header, buffer, sizeof(header));
-	DEBUGOUT("usProtocol_RecvPackage [%d/%d]Bytes\r\n", 
+	SDEBUGOUT("usProtocol_RecvPackage [%d/%d]Bytes\r\n", 
 				header.len, size);
 	/*Handle Package*/
 	if(header.len+sizeof(header) == size){
-		DEBUGOUT("usProtocol_RecvPackage Finish\r\n");
+		SDEBUGOUT("usProtocol_RecvPackage Finish\r\n");
 	}
 	
-	switch(header->ctrid){
+	switch(header.ctrid){
 		case SCSI_READ:
 			usStorage_diskREAD(&header);
 			break;
 		case SCSI_WRITE:		
-			usStorage_diskWRITE(sizeof(header), header);
+			usStorage_diskWRITE(sizeof(header), &header);
 			break;
 		case SCSI_GET_LUN:
-			usStorage_diskLUN(header);
+			usStorage_diskLUN(&header);
 			break;
 		default:
-			DEBUGOUT("Unhandle Command\r\n");
+			SDEBUGOUT("Unhandle Command\r\n");
 	}
 
 	return 0;
@@ -200,7 +253,7 @@ void vs_main(void *pvParameters)
 {
 	SetupHardware();
 
-	DEBUGOUT("U-Storage Running.\r\n");
+	SDEBUGOUT("U-Storage Running.\r\n");
 	while(1){
 		if (USB_HostState[0] != HOST_STATE_Configured) {
 			USB_USBTask(0, USB_MODE_Host);
@@ -222,9 +275,9 @@ void vs_main(void *pvParameters)
 void EVENT_USB_Host_DeviceAttached(const uint8_t corenum)
 {
 	if(corenum == 1){
-		DEBUGOUT(("Disk Attached on port %d\r\n"), corenum);	
+		SDEBUGOUT(("Disk Attached on port %d\r\n"), corenum);	
 	}else{
-		DEBUGOUT(("Phone Attached on port %d\r\n"), corenum);
+		SDEBUGOUT(("Phone Attached on port %d\r\n"), corenum);
 		
 	}
 }
@@ -234,7 +287,7 @@ void EVENT_USB_Host_DeviceAttached(const uint8_t corenum)
  */
 void EVENT_USB_Host_DeviceUnattached(const uint8_t corenum)
 {
-	DEBUGOUT(("\r\nDevice Unattached on port %d\r\n"), corenum);
+	SDEBUGOUT(("\r\nDevice Unattached on port %d\r\n"), corenum);
 	memset(&(UStorage_Interface[corenum].State), 0x00, sizeof(UStorage_Interface[corenum].State));
 	if(corenum == 1){
 		usDisk_DeviceDisConnect();
@@ -249,13 +302,13 @@ void EVENT_USB_Host_DeviceUnattached(const uint8_t corenum)
 void EVENT_USB_Host_DeviceEnumerationComplete(const uint8_t corenum)
 {
 	if(corenum == 1){
-		DEBUGOUT(("Disk Enumeration on port %d\r\n"), corenum);
+		SDEBUGOUT(("Disk Enumeration on port %d\r\n"), corenum);
 		usDisk_DeviceDetect(&UStorage_Interface[corenum]);
 	}else if(corenum == 0){
-		DEBUGOUT(("Phone Enumeration on port %d\r\n"), corenum);
+		SDEBUGOUT(("Phone Enumeration on port %d\r\n"), corenum);
 		usProtocol_DeviceDetect(&UStorage_Interface[corenum]);	
 	}else{
-		DEBUGOUT("Unknown USB Port %d.\r\n", corenum);
+		SDEBUGOUT("Unknown USB Port %d.\r\n", corenum);
 	}
 }
 /** Event handler for the USB_HostError event. This indicates that a hardware error occurred while in host mode. */
@@ -263,7 +316,7 @@ void EVENT_USB_Host_HostError(const uint8_t corenum, const uint8_t ErrorCode)
 {
 	USB_Disable(corenum, USB_MODE_Host);
 
-	DEBUGOUT(("Host Mode Error\r\n"
+	SDEBUGOUT(("Host Mode Error\r\n"
 			  " -- Error port %d\r\n"
 			  " -- Error Code %d\r\n" ), corenum, ErrorCode);
 
@@ -277,7 +330,7 @@ void EVENT_USB_Host_DeviceEnumerationFailed(const uint8_t corenum,
 											const uint8_t ErrorCode,
 											const uint8_t SubErrorCode)
 {
-	DEBUGOUT(("Dev Enum Error\r\n"
+	SDEBUGOUT(("Dev Enum Error\r\n"
 			  " -- Error port %d\r\n"
 			  " -- Error Code %d\r\n"
 			  " -- Sub Error Code %d\r\n"
