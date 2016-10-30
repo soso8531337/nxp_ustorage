@@ -117,6 +117,29 @@ static void SetupHardware(void)
 /*****************************************************************************
  * Private functions
  ****************************************************************************/
+static int usStorage_sendHEAD(struct scsi_head *header)
+{
+	uint8_t *buffer = NULL;
+	uint32_t size = 0;
+
+	if(!header){
+		return 1;
+	}
+
+	if(usProtocol_GetAvaiableBuffer((void **)&buffer, &size)){
+		SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
+		return 1;
+	}
+	memcpy(buffer, header, USS_HEADER);
+	/*Send To Phone*/
+	if(usProtocol_SendPackage(buffer, USS_HEADER)){
+		SDEBUGOUT("Send To Phone[Just Header Error]\r\n");
+		return 1;
+	}
+
+	return 0;
+}
+
 static int usStorage_diskREAD(struct scsi_head *header)
 {
 	uint8_t *buffer = NULL;
@@ -170,12 +193,73 @@ static int usStorage_diskREAD(struct scsi_head *header)
 		addr += secCount;
 		rsize += avsize;
 	}
+
+	SDEBUGOUT("usStorage_diskREAD Finish Successful\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
+			header->wtag, header->ctrid, header->addr, header->len, header->wlun);
 	
 	return 0;
 }
 
-static int usStorage_diskWRITE(const uint32_t handleSzie, struct scsi_head *header)
+static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_head *header)
 {
+	uint32_t hSize = recvSize;
+	uint32_t paySize, curSize = 0;
+	int32_t addr;	
+	uint8_t *pbuffer;
+
+	if(!buffer || !header){
+		SDEBUGOUT("usStorage_diskWRITE Parameter Error\r\n");
+		return 1;
+	}
+	if(!header->len){
+		SDEBUGOUT("usStorage_diskWRITE Length is 0\r\n");
+		return 0;
+	}
+	addr = header->addr;
+	/*Write the first payload*/
+	paySize= recvSize-sizeof(struct scsi_head);
+	if(paySize % 512){
+		SDEBUGOUT("usStorage_diskWRITE paySize  is %d\r\n", paySize);
+		return 1;
+	}
+	if(usDisk_DiskWriteSectors(buffer+sizeof(struct scsi_head), addr, paySize / 512)){
+		SDEBUGOUT("Write Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
+				paySize, addr, paySize / 512);
+		return 1;
+	}
+	addr += paySize / 512;
+	curSize = paySize;
+	while(curSize < header->len){
+		uint32_t secCount = 0;
+		if(usProtocol_RecvPackage((void **)&pbuffer, hSize, &paySize)){
+			SDEBUGOUT("usProtocol_RecvPackage Failed\r\n");
+			return 1;
+		}
+		secCount = paySize/512;
+		if(paySize %512){
+			SDEBUGOUT("usStorage_diskWRITE paySize	is %d[512]\r\n", paySize);
+			return 1;
+		}
+		/*Write to disk*/
+		if(usDisk_DiskWriteSectors(pbuffer, addr, secCount)){
+			SDEBUGOUT("Write Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
+					paySize, addr, secCount);
+			return 1;
+		}
+		/*Add var*/
+		addr += secCount;
+		curSize += paySize;
+		hSize+= paySize;
+	}
+
+	/*Write to Phone*/
+	if(usStorage_sendHEAD(header)){
+		SDEBUGOUT("Error Send Header\r\n");
+		return 1;
+	}
+
+	SDEBUGOUT("usStorage_diskWRITE Finish Successful\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
+			header->wtag, header->ctrid, header->addr, header->len, header->wlun);
 	return 0;
 }
 
@@ -215,6 +299,7 @@ static int usStorage_Handle(void)
 		SDEBUGOUT("usProtocol_RecvPackage Failed\r\n");
 		return 1;
 	}
+	/*Must save the header, it will be erase*/
 	memcpy(&header, buffer, sizeof(header));
 	SDEBUGOUT("usProtocol_RecvPackage [%d/%d]Bytes\r\n", 
 				header.len, size);
@@ -228,7 +313,7 @@ static int usStorage_Handle(void)
 			usStorage_diskREAD(&header);
 			break;
 		case SCSI_WRITE:		
-			usStorage_diskWRITE(sizeof(header), &header);
+			usStorage_diskWRITE(buffer, size, &header);
 			break;
 		case SCSI_GET_LUN:
 			usStorage_diskLUN(&header);
@@ -277,8 +362,7 @@ void EVENT_USB_Host_DeviceAttached(const uint8_t corenum)
 	if(corenum == 1){
 		SDEBUGOUT(("Disk Attached on port %d\r\n"), corenum);	
 	}else{
-		SDEBUGOUT(("Phone Attached on port %d\r\n"), corenum);
-		
+		SDEBUGOUT(("Phone Attached on port %d\r\n"), corenum);	
 	}
 }
 

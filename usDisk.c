@@ -39,6 +39,7 @@ typedef struct {
 
 usDisk_info uDinfo;
 
+#if defined(NXP_CHIP_18XX)
 extern uint8_t DCOMP_MS_Host_NextMSInterfaceEndpoint(void* const CurrentDescriptor);
 /*****************************************************************************
  * Private functions
@@ -59,11 +60,11 @@ static uint8_t NXP_COMPFUNC_MSC_CLASS(void* const CurrentDescriptor)
 
 	return DESCRIPTOR_SEARCH_NotFound;
 }
+#endif
 
 uint8_t usDisk_DeviceDetect(void *os_priv)
 {	
 	USB_StdDesDevice_t DeviceDescriptorData;
-	nxp_clminface nxpcall;	
 	uint8_t MaxLUNIndex;
 	usb_device *usbdev = &(uDinfo.diskdev);
 	
@@ -76,7 +77,9 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 		DSKDEBUG("usUusb_GetDeviceDescriptor Failed\r\n");
 		return DISK_REGEN;
 	}
-	/*Set callback*/
+#if defined(NXP_CHIP_18XX)	
+	/*Set callback*/	
+	nxp_clminface nxpcall;	
 	nxpcall.callbackInterface = NXP_COMPFUNC_MSC_CLASS;
 	nxpcall.callbackEndpoint= DCOMP_MS_Host_NextMSInterfaceEndpoint;
 	/*Claim Interface*/
@@ -85,6 +88,12 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 		DSKDEBUG("Attached Device Not a Valid DiskDevice.\r\n");
 		return DISK_REINVAILD;
 	}
+#elif defined(LINUX)
+	if(usUsb_ClaimInterface(usbdev, NULL)){
+		DSKDEBUG("Attached Device Not a Valid DiskDevice.\r\n");
+		return DISK_REINVAILD;
+	}
+#endif
 
 	if(usUsb_GetMaxLUN(usbdev, &MaxLUNIndex)){		
 		DSKDEBUG("Get LUN Failed\r\n");

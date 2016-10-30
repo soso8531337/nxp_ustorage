@@ -11,9 +11,12 @@
 #include "usUsb.h"
 #include "usSys.h"
 
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 #include "MassStorageHost.h"
 #include "fsusb_cfg.h"
+#elif defined(LINUX)
+
+
 #endif
 
 enum{
@@ -36,7 +39,7 @@ enum{
 /*****************************************************************************
  * Private functions
  ****************************************************************************/
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 /*Special USB Command*/
 static uint8_t NXP_SendControlRequest(const uint8_t corenum, 
 			uint8_t bmRequestType, uint8_t bRequest, 
@@ -428,6 +431,142 @@ uint8_t NXP_ReadDeviceCapacity(usb_device *usbdev, uint32_t *Blocks, uint32_t *B
 	return USB_REOK;
 }
 
+#elif defined(LINUX)
+static uint8_t LINUX_SendControlRequest(void* dev_handle, 
+			uint8_t bmRequestType, uint8_t bRequest, 
+			uint16_t wValue, uint16_t wIndex, uint16_t wLength, void * const data)
+{
+	int8_t rc;
+	
+	rc =  libusb_control_transfer((libusb_device_handle *)dev_handle, bmRequestType, 
+					bRequest, wValue, wIndex, data, wLength, 0);
+	
+	return (rc < 0)?USB_REGEN:USB_REOK;
+}
+
+static uint8_t LINUX_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, uint32_t length)
+{
+	int8_t rc;
+	int transferred;
+
+	rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
+							LIBUSB_ENDPOINT_OUT,
+							buffer,
+							length,
+							&transferred,
+							0);
+
+	USBDEBUG("LIBUSB Send %d/%d.\r\n", transferred, length);
+
+	return rc?USB_REGEN:USB_REOK;
+}
+
+static uint8_t LINUX_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length)
+{
+	int8_t rc;
+	int transferred;
+
+	rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
+							LIBUSB_ENDPOINT_IN,
+							buffer,
+							length,
+							&transferred,
+							0);
+
+	USBDEBUG("LIBUSB Receive %d/%d.\r\n", transferred, length);
+
+	return rc?USB_REGEN:USB_REOK;
+}
+static uint8_t LINUX_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData)
+{
+	if(!DeviceDescriptorData || !usbdev){
+		return USB_REPARA;
+	}
+	if(libusb_get_device_descriptor((struct libusb_device_handle *)(usbdev->os_priv), 
+					(libusb_device_descriptor*)DeviceDescriptorData)){
+		USBDEBUG("Error Getting Device Descriptor.\r\n");
+		return USB_REGEN;
+	}
+	return USB_REOK;
+}
+
+static uint8_t LINUX_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex)
+{	
+	if(!usbdev){
+		return USB_REPARA;
+	}
+	if (libusb_set_configuration((struct libusb_device_handle *)(usbdev->os_priv), cfgindex) != 0) {
+		USBDEBUG("Error Setting Device Configuration.\r\n");
+		return USB_REGEN;
+	}
+	
+	return USB_REOK;
+}
+
+static uint8_t LINUX_Init(usb_device *usbdev, void *os_priv)
+{
+	return USB_REOK;
+}
+
+uint8_t LINUX_DiskReadSectors(usb_device *usbdev, 
+				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+	int fd;
+	char devname[512] = {0};
+	
+	fd = open(devname, O_RDWR);
+	if(fd < 0){
+		USBDEBUG("Open %s Error:%s\n", devname, strerror(errno));
+		return USB_REGEN;
+	}
+	if(lseek(fd, secStart*512, SEEK_SET) < 0){
+		USBDEBUG("Lseek %s Error:%s\n", devname, strerror(errno));
+		close(fd);
+		return USB_REGEN;
+	}
+	if(read(fd, buff, numSec*BlockSize)< 0){
+		USBDEBUG("Read %s Error:%s\n", devname, strerror(errno));
+		close(fd);
+		return USB_REGEN;		
+	}
+	close(fd);
+	
+	return USB_REOK;
+}
+
+uint8_t LINUX_DiskWriteSectors(usb_device *usbdev, 
+				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+	int fd;
+	char devname[512] = {0};
+	
+	fd = open(devname, O_RDWR);
+	if(fd < 0){
+		USBDEBUG("Open %s Error:%s\n", devname, strerror(errno));
+		return USB_REGEN;
+	}
+	if(lseek(fd, secStart*512, SEEK_SET) < 0){
+		USBDEBUG("Lseek %s Error:%s\n", devname, strerror(errno));
+		close(fd);
+		return USB_REGEN;
+	}
+	if(write(fd, buff, numSec*BlockSize)< 0){
+		USBDEBUG("write %s Error:%s\n", devname, strerror(errno));
+		close(fd);
+		return USB_REGEN;		
+	}
+	close(fd);
+	
+	return USB_REOK;
+}
+
+
+
+
+
+
+
+
 #endif
 
 /*****************************************************************************
@@ -446,123 +585,153 @@ uint8_t usUsb_SendControlRequest(usb_device *usbdev,
 			uint8_t bmRequestType, uint8_t bRequest, 
 			uint16_t wValue, uint16_t wIndex, uint16_t wLength,  void * data)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	if(!usbdev){
 		return USB_REPARA;
 	}
 	return NXP_SendControlRequest(usbdev->device_address, bmRequestType,
+				bRequest, wValue, wIndex, wLength, data);
+#elif defined(LINUX)
+	if(!usbdev){
+		return USB_REPARA;
+	}
+	return LINUX_SendControlRequest(usbdev->os_priv, bmRequestType,
 				bRequest, wValue, wIndex, wLength, data);
 #endif
 }
 
 uint8_t usUsb_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, const uint32_t length)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_BlukPacketSend(usbdev, buffer, length);
+#elif defined(LINUX)
+	return LINUX_BlukPacketSend(usbdev, buffer, length);
 #endif
 }
 
 uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_BlukPacketReceive(usbdev, buffer, length);
+#elif defined(LINUX)
+	return LINUX_BlukPacketReceive(usbdev, buffer, length);
 #endif
+
 }
 
 uint8_t usUsb_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_GetDeviceDescriptor(usbdev, DeviceDescriptorData);
+#elif defined(LINUX)
+	return LINUX_GetDeviceDescriptor(usbdev, DeviceDescriptorData);
 #endif
 }
 
 uint8_t usUsb_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint16_t *cfgsize,
 					uint8_t *ConfigDescriptorData, uint16_t ConfigDescriptorDataLen)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_GetDeviceConfigDescriptor(usbdev, index, cfgsize, 
 						ConfigDescriptorData, ConfigDescriptorDataLen);
+#elif defined(LINUX)
+	return USB_REOK;
 #endif
 }
 
 uint8_t usUsb_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_SetDeviceConfigDescriptor(usbdev, cfgindex);
+#elif defined(LINUX)
+	return LINUX_SetDeviceConfigDescriptor(usbdev, cfgindex);
 #endif
 }
 
 uint8_t usUsb_ClaimInterface(usb_device *usbdev, void *cPrivate)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_ClaimInterface(usbdev, (nxp_clminface*)cPrivate);
+#elif defined(LINUX)
+	return USB_REOK;
 #endif
 }
 
 uint8_t usUsb_GetMaxLUN(usb_device *usbdev, uint8_t *LunIndex)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_GetMaxLUN(usbdev, LunIndex);
+#elif defined(LINUX)
+	return USB_REOK;
 #endif
 }
 
 uint8_t usUsb_ResetMSInterface(usb_device *usbdev)
 {
-#ifdef NXP_CHIP_18XX
-		return NXP_ResetMSInterface(usbdev);
+#if defined(NXP_CHIP_18XX)
+	return NXP_ResetMSInterface(usbdev);
+#elif defined(LINUX)
+	return USB_REOK;
 #endif
 }
 
 uint8_t usUsb_RequestSense(usb_device *usbdev,
 						uint8_t index, SCSI_Sense_Response_t *SenseData)
 {
-#ifdef NXP_CHIP_18XX
-		return NXP_RequestSense(usbdev, index, SenseData);
+#if defined(NXP_CHIP_18XX)
+	return NXP_RequestSense(usbdev, index, SenseData);
+#elif defined(LINUX)
+	return USB_REOK;
 #endif
 }
 
 uint8_t usUsb_GetInquiryData(usb_device *usbdev,
 						uint8_t index, SCSI_Inquiry_t *InquiryData)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_GetInquiryData(usbdev, index, InquiryData);
+#elif defined(LINUX)
+	return USB_REOK;
 #endif
 }
 
 uint8_t usUsb_ReadDeviceCapacity(usb_device *usbdev, uint32_t *Blocks, uint32_t *BlockSize)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_ReadDeviceCapacity(usbdev, Blocks, BlockSize);
+#elif defined(LINUX)
+	*BlockSize = 512;
+	return USB_REOK;
 #endif
 }
 
-
-
-
-
-
 uint8_t usUsb_Init(usb_device *usbdev, void *os_priv)
 {
-#ifdef NXP_CHIP_18XX
+#if defined(NXP_CHIP_18XX)
 	return NXP_Init(usbdev, os_priv);
-#else
-	return USB_REOK;
+#elif defined(LINUX)
+	return LINUX_Init(usbdev, os_priv);
 #endif
 }
 
 uint8_t usUsb_DiskReadSectors(usb_device *usbdev, 
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
-#ifdef NXP_CHIP_18XX
-		return NXP_DiskReadSectors(usbdev, buff, secStart, numSec, BlockSize);
+#if defined(NXP_CHIP_18XX)
+	return NXP_DiskReadSectors(usbdev, buff, secStart, numSec, BlockSize);
+#elif defined(LINUX)
+	return LINUX_DiskReadSectors(usbdev, buff, secStart, numSec, BlockSize);
 #endif
+
 }
 
 uint8_t usUsb_DiskWriteSectors(usb_device *usbdev, 
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
-#ifdef NXP_CHIP_18XX
-		return NXP_DiskWriteSectors(usbdev, buff, secStart, numSec, BlockSize);
+#if defined(NXP_CHIP_18XX)
+	return NXP_DiskWriteSectors(usbdev, buff, secStart, numSec, BlockSize);
+#elif defined(LINUX)
+	return LINUX_DiskWriteSectors(usbdev, buff, secStart, numSec, BlockSize);
 #endif
 }
 

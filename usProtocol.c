@@ -9,6 +9,7 @@
 #include <string.h>
 #include "usProtocol.h"
 #include "usUsb.h"
+#include "usSys.h"
 #include "MassStorageHost.h"
 
 
@@ -425,6 +426,11 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 			return PROTOCOL_REGEN;
 		}
 		hdr = (struct scsi_head *)tbuffer;
+		/*Check Protocol header*/
+		if(hdr->head != SCSI_PHONE_MAGIC){
+			PRODEBUG("AOA Package Header Error:0x%x\r\n", hdr->head);
+			return PROTOCOL_REGEN;
+		}
 		uSdev->protlen = hdr->len+sizeof(struct scsi_head);
 		uSdev->prohlen = sizeof(struct scsi_head);
 		tbuffer += uSdev->prohlen;
@@ -441,6 +447,10 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 		}
 		*rsize = uSdev->prohlen;
 	}
+	if(!(*rsize) && uSdev->prohlen != tsize){
+		PRODEBUG("Mismatch Handle Size %d/%d\r\n", tsize, uSdev->prohlen);
+		return PROTOCOL_REGEN;
+	}
 	/*we just receive 512*number */
 	Recvsize = uSdev->max_payload-(tbuffer-uSdev->ib_buf);
 	Recvsize = Recvsize-Recvsize%512;
@@ -452,6 +462,9 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 	}
 	*buffer = uSdev->ib_buf;
 	*rsize += Recvsize;
+	uSdev->prohlen += Recvsize;
+	PRODEBUG("Receive aoa Package Finish-->buffer:%p Recvsize:%d Total:%d Handle:%d\r\n",
+			uSdev->ib_buf, *rsize, uSdev->protlen, uSdev->prohlen);
 	
 	return PROTOCOL_REOK;
 }
@@ -459,6 +472,88 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer, 
 											uint32_t tsize, uint32_t *rsize)
 {
+	uint8_t *tbuffer = uSdev->ib_buf;
+	uint32_t Recvsize = 0;
+	
+	if(!uSdev || !buffer){
+		return PROTOCOL_REGEN;
+	}
+	/*We need to read ios protocol header*/
+	*rsize = 0;
+	if(tsize == 0){
+		PRODEBUG("First Receive ios Package\r\n");
+		/*Receive Header*/
+		if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, sizeof(struct mux_header))){
+			PRODEBUG("Receive ios Package mux_header Error\r\n");
+			return PROTOCOL_REGEN;
+		}
+		struct tcphdr *th;
+		uint8_t *payload;
+		uint32_t payload_length, read_length;
+		struct mux_header *mhdr =  (struct mux_header *)tbuffer;		
+		int mux_header_size = ((uSdev->version < 2) ? 8 : sizeof(struct mux_header));
+		uSdev->protlen  = ntohs(mhdr->length);
+		uSdev->prohlen= mux_header_size;
+
+		tbuffer += uSdev->prohlen;
+
+		if(uSdev->protlen<= uSdev->max_payload){
+			read_length = uSdev->protlen-uSdev->prohlen;
+		}else{
+			read_length = sizeof(struct tcphdr);
+		}
+		if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, read_length)){
+			PRODEBUG("Receive ios Package Header Error\r\n");
+			return PROTOCOL_REGEN;
+		}
+		/*We need to decode tcp header*/			
+		th = (struct tcphdr *)((char*)mhdr+mux_header_size);
+		if (uSdev->version >= 2) {
+			uSdev->rx_seq = ntohs(mhdr->rx_seq);
+		}
+		uSdev->tcpinfo.rx_seq = ntohl(th->th_seq);
+		uSdev->tcpinfo.rx_ack = ntohl(th->th_ack);
+		uSdev->tcpinfo.rx_win = ntohs(th->th_win) << 8;
+		payload = (unsigned char *)(mhdr+1);
+		payload_length = uSdev->protlen - mux_header_size- sizeof(struct tcphdr);
+		
+		if(th->th_flags & TH_RST) {
+			/*Connection Reset*/
+			PRODEBUG("Connection Reset:\r\n");
+			usUsb_Print(payload, payload_length);
+			return PROTOCOL_REGEN;
+		}
+		if(uSdev->protlen<= uSdev->max_payload){
+			*buffer = payload;
+			*rsize = payload_length;
+			/*Send ACK*/
+			send_tcp_ack(uSdev);
+			PRODEBUG("We Receive it Finish one time..\r\n");
+			return PROTOCOL_REGEN;
+		}
+		tbuffer += read_length;
+		uSdev->prohlen += read_length;
+	}
+
+	/*we just receive 512*number */
+	Recvsize = uSdev->max_payload-(tbuffer-uSdev->ib_buf);
+	Recvsize = Recvsize-Recvsize%512;
+	Recvsize = min(Recvsize, (uSdev->protlen-uSdev->prohlen));
+	PRODEBUG("Prepare Receive ios Package %d\r\n", Recvsize);
+	if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, Recvsize)){
+		PRODEBUG("Receive ios Package Header Error\r\n");
+		return PROTOCOL_REGEN;
+	}
+	*buffer = tbuffer;
+	*rsize = Recvsize;
+	uSdev->prohlen += Recvsize;
+	if(uSdev->prohlen == uSdev->protlen){
+		PRODEBUG("We Need To Send ACK[Package Finish]\r\n");
+		send_tcp_ack(uSdev);
+	}
+	PRODEBUG("Receive IOS Package Finish-->buffer:%p Recvsize:%d Total:%d Handle:%d\r\n",
+			uSdev->ib_buf, *rsize, uSdev->protlen, uSdev->prohlen);
+	
 	return PROTOCOL_REOK;
 }
 
@@ -466,6 +561,7 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 /*****************************************************************************
  * Private functions[Chip]
  ****************************************************************************/
+#if defined(NXP_CHIP_18XX)
 static uint8_t NXP_FILTERFUNC_AOA_CLASS(void* const CurrentDescriptor)
 {
 	USB_Descriptor_Header_t* Header = DESCRIPTOR_PCAST(CurrentDescriptor, USB_Descriptor_Header_t);
@@ -635,7 +731,12 @@ static uint8_t NXP_SwitchAOAMode(usb_device *usbdev)
 	PRODEBUG("Start AOA Successful  Android Will Reconnect\r\n");
 	return PROTOCOL_REOK;
 }
+#elif defined(LINUX)
+static uint8_t LINUX_SwitchAOAMode(usb_device *usbdev)
+{
 
+}
+#endif
 /*****************************************************************************
  * Public functions
  ****************************************************************************/
@@ -799,6 +900,7 @@ uint8_t usProtocol_ConnectPhone(void)
 	
 	return PROTOCOL_REOK;	
 }
+#if defined(NXP_CHIP_18XX)
 uint8_t usProtocol_DeviceDetect(void *os_priv)
 {
 	USB_StdDesDevice_t DeviceDescriptorData;
@@ -867,6 +969,13 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 	
 	return PROTOCOL_REOK;
 }
+#elif defined(LINUX)
+uint8_t usProtocol_DeviceDetect(void *os_priv)
+{
+	return PROTOCOL_REOK;
+}
+#endif
+
 uint8_t usProtocol_DeviceDisConnect(void)
 {
 	memset(&uSinfo, 0, sizeof(uSinfo));
