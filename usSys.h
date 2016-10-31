@@ -8,7 +8,9 @@ extern "C" {
 #endif
 
 
-#define NXP_CHIP_18XX	1
+//#define NXP_CHIP_18XX 1
+#define LINUX   1
+
 void die(uint8_t rc);
 
 #ifdef __cplusplus

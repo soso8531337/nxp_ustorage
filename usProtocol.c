@@ -10,8 +10,11 @@
 #include "usProtocol.h"
 #include "usUsb.h"
 #include "usSys.h"
+#if defined(NXP_CHIP_18XX)
 #include "MassStorageHost.h"
-
+#elif defined(LINUX)
+#include <libusb-1.0/libusb.h>
+#endif
 
 /*****************************************************************************
  * Private types/enumerations/variables
@@ -634,7 +637,7 @@ uint8_t DCOMP_MS_Host_NextMSInterfaceEndpoint(void* const CurrentDescriptor)
 	return DESCRIPTOR_SEARCH_NotFound;
 }
 
-static uint8_t NXP_SwitchAOAMode(usb_device *usbdev)
+uint8_t usProtocol_SwitchAOAMode(usb_device *usbdev)
 {
 	USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(usbdev->os_priv);
 	uint8_t version[2] = {0};
@@ -900,10 +903,6 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
  * Public functions
  ****************************************************************************/
 
-uint8_t usProtocol_SwitchAOAMode(usb_device *usbdev)
-{
-	return NXP_SwitchAOAMode(usbdev);
-}
 
 uint8_t usProtocol_ConnectIOSPhone(mux_itunes *uSdev)
 {
@@ -1224,12 +1223,12 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 		
 		for(j=0; j<config->bNumInterfaces; j++) {
 			const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
-			if(PhoneType = PRO_IOS &&
+			if(PhoneType == PRO_IOS &&
 				   (intf->bInterfaceClass != AOA_FTRANS_CLASS ||
 				   intf->bInterfaceSubClass != AOA_FTRANS_SUBCLASS ||
 				   intf->bInterfaceProtocol != AOA_FTRANS_PROTOCOL)){
 				continue;
-			}else if(PhoneType = PRO_ANDROID&&
+			}else if(PhoneType == PRO_ANDROID&&
 				   intf->bInterfaceClass != INTERFACE_CLASS_AOA){
 				continue;
 			}
@@ -1240,14 +1239,14 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 			if((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
 			   (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
 			   	interfaceNum = intf->bInterfaceNumber;
-				usb_phone->ep_out = intf->endpoint[1].bEndpointAddress;
-				usb_phone->ep_in = intf->endpoint[0].bEndpointAddress;
+				usb_phone.ep_out = intf->endpoint[1].bEndpointAddress;
+				usb_phone.ep_in = intf->endpoint[0].bEndpointAddress;
 				PRODEBUG("Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
 				break;
 			} else if((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
 					  (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
-				usb_phone->ep_out = intf->endpoint[1].bEndpointAddress;
-				usb_phone->ep_in = intf->endpoint[0].bEndpointAddress;				
+				usb_phone.ep_out = intf->endpoint[1].bEndpointAddress;
+				usb_phone.ep_in = intf->endpoint[0].bEndpointAddress;				
 			   	interfaceNum = intf->bInterfaceNumber;
 				PRODEBUG("Found interface %d with swapped endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
 				break;
@@ -1270,15 +1269,15 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 			continue;
 		}
 
-		usb_phone->os_priv = (void*)handle;
-		usb_phone->bus_number= bus;
-		usb_phone->device_address= address;
-		usb_phone->wMaxPacketSize = libusb_get_max_packet_size(dev, usb_phone->ep_out);
-		if (usb_phone->wMaxPacketSize <= 0) {
-			PRODEBUG("Could not determine wMaxPacketSize for device %d-%d, setting to 64", usbdev->bus, usbdev->address);
-			usb_phone->wMaxPacketSize = 64;
+		usb_phone.os_priv = (void*)handle;
+		usb_phone.bus_number= bus;
+		usb_phone.device_address= address;
+		usb_phone.wMaxPacketSize = libusb_get_max_packet_size(dev, usb_phone.ep_out);
+		if (usb_phone.wMaxPacketSize <= 0) {
+			PRODEBUG("Could not determine wMaxPacketSize for device %d-%d, setting to 64", bus, address);
+			usb_phone.wMaxPacketSize = 64;
 		} else {
-			PRODEBUG("Using wMaxPacketSize=%d for device %d-%d", usbdev->wMaxPacketSize, usbdev->bus, usbdev->address);
+			PRODEBUG("Using wMaxPacketSize=%d for device %d-%d", usb_phone.wMaxPacketSize, bus, address);
 		}
 		/*Set Global var*/
 		uSinfo.usType = PhoneType;

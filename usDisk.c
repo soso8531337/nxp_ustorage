@@ -37,8 +37,12 @@
 #include <linux/netlink.h>
 #include <sys/ioctl.h>
 #include <scsi/sg.h>
+
+#if !defined(BLKGETSIZE64)
+#define BLKGETSIZE64           _IOR(0x12,114,size_t)
 #endif
 
+#endif
 
 #define MSC_FTRANS_CLASS				0x08
 #define MSC_FTRANS_SUBCLASS			0x06
