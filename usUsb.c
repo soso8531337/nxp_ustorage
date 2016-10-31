@@ -492,7 +492,7 @@ static uint8_t LINUX_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t 
 		return USB_REPARA;
 	}
 	dev_handle = (libusb_device_handle*)(usbdev->os_priv);
-	if(libusb_get_device_descriptor(dev_handle->dev, 
+	if(libusb_get_device_descriptor(libusb_get_device(dev_handle), 
 					(struct libusb_device_descriptor*)DeviceDescriptorData)){
 		USBDEBUG("Error Getting Device Descriptor.\r\n");
 		return USB_REGEN;
