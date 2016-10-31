@@ -732,9 +732,164 @@ static uint8_t NXP_SwitchAOAMode(usb_device *usbdev)
 	return PROTOCOL_REOK;
 }
 #elif defined(LINUX)
-static uint8_t LINUX_SwitchAOAMode(usb_device *usbdev)
+static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 {
+	int res=-1, j;
+	libusb_device_handle *handle;
+	struct libusb_config_descriptor *config;
+	uint8_t version[2];
+	uint8_t bus = libusb_get_bus_number(dev);
+	uint8_t address = libusb_get_device_address(dev);
 
+	// potentially blocking operations follow; they will only run when new devices are detected, which is acceptable
+	if((res = libusb_open(dev, &handle)) != 0) {
+		PRODEBUG("Could not open device %d-%d: %d", bus, address, res);
+		return PROTOCOL_REGEN;
+	}
+	if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
+		PRODEBUG("Could not get configuration descriptor for device %d-%d: %d", bus, address, res);
+		libusb_close(handle);
+		return PROTOCOL_REGEN;
+	}
+	
+	for(j=0; j<config->bNumInterfaces; j++) {
+		const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
+		/*We Just limit InterfaceClass, limit InterfaceSubClass may be lost sanxing huawei device*/
+		if(intf->bInterfaceClass != INTERFACE_CLASS_AOA){
+			continue;
+		}
+		/* Now asking if device supports Android Open Accessory protocol */
+		res = libusb_control_transfer(handle,
+					      LIBUSB_ENDPOINT_IN |
+					      LIBUSB_REQUEST_TYPE_VENDOR,
+					      AOA_GET_PROTOCOL, 0, 0, version,
+					      sizeof(version), 0);
+		if (res < 0) {
+			PRODEBUG("Could not getting AOA protocol %d-%d: %d", bus, address, res);
+			libusb_free_config_descriptor(config);
+			libusb_close(handle);
+			return PROTOCOL_REGEN;
+		}else{
+			acc_default.aoa_version = ((version[1] << 8) | version[0]);
+			PRODEBUG("Device[%d-%d] supports AOA %d.0!", bus, address, acc_default.aoa_version);
+		}
+		/* In case of a no_app accessory, the version must be >= 2 */
+		if((acc_default.aoa_version < 2) && !acc_default.manufacturer) {
+			PRODEBUG("Connecting without an Android App only for AOA 2.0[%d-%d]", bus,address);
+			libusb_free_config_descriptor(config);
+			libusb_close(handle);
+			return PROTOCOL_REGEN;
+		}
+		if(acc_default.manufacturer) {
+			PRODEBUG("sending manufacturer: %s", acc_default.manufacturer);
+			res = libusb_control_transfer(handle,
+						  LIBUSB_ENDPOINT_OUT
+						  | LIBUSB_REQUEST_TYPE_VENDOR,
+						  AOA_SEND_IDENT, 0,
+						  AOA_STRING_MAN_ID,
+						  (uint8_t *)acc_default.manufacturer,
+						  strlen(acc_default.manufacturer) + 1, 0);
+			if(res < 0){
+				PRODEBUG("Could not Set AOA manufacturer %d-%d: %d", bus, address, res);
+				libusb_free_config_descriptor(config);
+				libusb_close(handle);
+				return PROTOCOL_REGEN;
+			}
+		}
+		if(acc_default.model) {
+			PRODEBUG("sending model: %s", acc_default.model);
+			res = libusb_control_transfer(handle,
+						  LIBUSB_ENDPOINT_OUT
+						  | LIBUSB_REQUEST_TYPE_VENDOR,
+						  AOA_SEND_IDENT, 0,
+						  AOA_STRING_MOD_ID,
+						  (uint8_t *)acc_default.model,
+						  strlen(acc_default.model) + 1, 0);
+			if(res < 0){
+				PRODEBUG("Could not Set AOA model %d-%d: %d", bus, address, res);
+				libusb_free_config_descriptor(config);
+				libusb_close(handle);
+				return PROTOCOL_REGEN;
+			}
+		}
+		
+		PRODEBUG("sending description: %s", acc_default.description);
+		res = libusb_control_transfer(handle,
+					  LIBUSB_ENDPOINT_OUT
+					  | LIBUSB_REQUEST_TYPE_VENDOR,
+					  AOA_SEND_IDENT, 0,
+					  AOA_STRING_DSC_ID,
+					  (uint8_t *)acc_default.description,
+					  strlen(acc_default.description) + 1, 0);
+		if(res < 0){
+			PRODEBUG("Could not Set AOA description %d-%d: %d", bus, address, res);
+			libusb_free_config_descriptor(config);
+			libusb_close(handle);
+			return PROTOCOL_REGEN;
+		}
+		PRODEBUG("sending version string: %s", acc_default.version);
+		res = libusb_control_transfer(handle,
+					  LIBUSB_ENDPOINT_OUT
+					  | LIBUSB_REQUEST_TYPE_VENDOR,
+					  AOA_SEND_IDENT, 0,
+					  AOA_STRING_VER_ID,
+					  (uint8_t *)acc_default.version,
+					  strlen(acc_default.version) + 1, 0);
+		if(res < 0){
+			PRODEBUG("Could not Set AOA version %d-%d: %d", bus, address, res);
+			libusb_free_config_descriptor(config);
+			libusb_close(handle);
+			return PROTOCOL_REGEN;
+		}
+		PRODEBUG("sending url string: %s", acc_default.url);
+		res = libusb_control_transfer(handle,
+					  LIBUSB_ENDPOINT_OUT
+					  | LIBUSB_REQUEST_TYPE_VENDOR,
+					  AOA_SEND_IDENT, 0,
+					  AOA_STRING_URL_ID,
+					  (uint8_t *)acc_default.url,
+					  strlen(acc_default.url) + 1, 0);
+		if(res < 0){
+			PRODEBUG("Could not Set AOA url %d-%d: %d", bus, address, res);
+			libusb_free_config_descriptor(config);
+			libusb_close(handle);
+			return PROTOCOL_REGEN;
+		}
+		PRODEBUG("sending serial number: %s", acc_default.serial);
+		res = libusb_control_transfer(handle,
+					  LIBUSB_ENDPOINT_OUT
+					  | LIBUSB_REQUEST_TYPE_VENDOR,
+					  AOA_SEND_IDENT, 0,
+					  AOA_STRING_SER_ID,
+					  (uint8_t *)acc_default.serial,
+					  strlen(acc_default.serial) + 1, 0);
+		if(res < 0){
+			PRODEBUG("Could not Set AOA serial %d-%d: %d", bus, address, res);
+			libusb_free_config_descriptor(config);
+			libusb_close(handle);
+			return PROTOCOL_REGEN;
+		}
+		res = libusb_control_transfer(handle,
+					  LIBUSB_ENDPOINT_OUT |
+					  LIBUSB_REQUEST_TYPE_VENDOR,
+					  AOA_START_ACCESSORY, 0, 0, NULL, 0, 0);
+		if(res < 0){
+			PRODEBUG("Could not Start AOA %d-%d: %d", bus, address, res);
+			libusb_free_config_descriptor(config);
+			libusb_close(handle);
+			return PROTOCOL_REGEN;
+		}
+		PRODEBUG("Turning the device %d-%d in Accessory mode Successful", bus, address);
+		libusb_free_config_descriptor(config);
+		libusb_close(handle);
+		return PROTOCOL_REOK;
+	}	
+	
+	libusb_free_config_descriptor(config);
+	libusb_close(handle);
+	PRODEBUG("No Found Android Device in %d-%d", bus, address);
+
+	return PROTOCOL_REGEN;
 }
 #endif
 /*****************************************************************************
@@ -970,9 +1125,180 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 	return PROTOCOL_REOK;
 }
 #elif defined(LINUX)
+
+/*Global Var*/
+usb_device usb_phone;
+
 uint8_t usProtocol_DeviceDetect(void *os_priv)
 {
-	return PROTOCOL_REOK;
+	int cnt, i, res, j;
+	libusb_device **devs;	
+	int8_t PhoneType = -1;
+
+	memset(&usb_phone, 0, sizeof(usb_device));
+	cnt = libusb_get_device_list(NULL, &devs);
+	if(cnt < 0){
+		PRODEBUG("Get Device List Failed.\r\n");
+		return PROTOCOL_REINVAILD;
+	}
+	for(i=0; i<cnt; i++) {
+		libusb_device *dev = devs[i];		
+		struct libusb_device_descriptor devdesc;
+		uint8_t bus = libusb_get_bus_number(dev);
+		uint8_t address = libusb_get_device_address(dev);
+		if((res = libusb_get_device_descriptor(dev, &devdesc)) != 0) {
+			PRODEBUG("Could not get device descriptor for device %d-%d: %d", bus, address, res);
+			return PROTOCOL_REGEN;
+		}
+		if(devdesc.idVendor == VID_APPLE &&
+			(devdesc.idProduct >= PID_RANGE_LOW && devdesc.idProduct <= PID_RANGE_MAX)){
+			PRODEBUG("Found IOS device  v/p %04x:%04x at %d-%d", 
+					devdesc.idVendor, devdesc.idProduct, bus, address);
+			PhoneType = PRO_IOS;
+		}else if(devdesc.idVendor == AOA_ACCESSORY_VID &&
+			(devdesc.idProduct >= AOA_ACCESSORY_PID && devdesc.idProduct <= AOA_ACCESSORY_AUDIO_ADB_PID)){
+			PRODEBUG("Found Android AOA device  v/p %04x:%04x at %d-%d", 
+					devdesc.idVendor, devdesc.idProduct, bus, address);
+			PhoneType = PRO_ANDROID;
+		}else{
+			PRODEBUG("Try To Switch Android AOA Mode  v/p %04x:%04x at %d-%d", 
+						devdesc.idVendor, devdesc.idProduct, bus, address);
+			LINUX_SwitchAOAMode(dev);
+			return PROTOCOL_REGEN;
+		}
+		libusb_device_handle *handle;
+		PRODEBUG("Found new device with v/p %04x:%04x at %d-%d", devdesc.idVendor, devdesc.idProduct, bus, address);
+		// potentially blocking operations follow; they will only run when new devices are detected, which is acceptable
+		if((res = libusb_open(dev, &handle)) != 0) {
+			PRODEBUG("Could not open device %d-%d: %d", bus, address, res);
+			continue;
+		}
+		
+		int current_config = 0;
+		if((res = libusb_get_configuration(handle, &current_config)) != 0) {
+			PRODEBUG("Could not get configuration for device %d-%d: %d", bus, address, res);
+			libusb_close(handle);
+			continue;
+		}
+		if (current_config != devdesc.bNumConfigurations) {
+			struct libusb_config_descriptor *config;
+			if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
+				PRODEBUG("Could not get old configuration descriptor for device %d-%d: %d", bus, address, res);
+			} else {
+				for(j=0; j<config->bNumInterfaces; j++) {
+					const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
+					if((res = libusb_kernel_driver_active(handle, intf->bInterfaceNumber)) < 0) {
+						PRODEBUG("Could not check kernel ownership of interface %d for device %d-%d: %d", intf->bInterfaceNumber, bus, address, res);
+						continue;
+					}
+					if(res == 1) {
+						PRODEBUG("Detaching kernel driver for device %d-%d, interface %d", bus, address, intf->bInterfaceNumber);
+						if((res = libusb_detach_kernel_driver(handle, intf->bInterfaceNumber)) < 0) {
+							PRODEBUG("Could not detach kernel driver (%d), configuration change will probably fail!", res);
+							continue;
+						}
+					}
+				}
+				libusb_free_config_descriptor(config);
+			}
+		
+			PRODEBUG("Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, devdesc.bNumConfigurations);
+			if((res = libusb_set_configuration(handle, devdesc.bNumConfigurations)) != 0) {
+				PRODEBUG("Could not set configuration %d for device %d-%d: %d", devdesc.bNumConfigurations, bus, address, res);
+				libusb_close(handle);
+				continue;
+			}
+		}
+		
+		struct libusb_config_descriptor *config;
+		uint8_t interfaceNum;
+		if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
+			PRODEBUG("Could not get configuration descriptor for device %d-%d: %d", bus, address, res);
+			libusb_close(handle);
+			continue;
+		}
+		
+		for(j=0; j<config->bNumInterfaces; j++) {
+			const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
+			if(PhoneType = PRO_IOS &&
+				   (intf->bInterfaceClass != AOA_FTRANS_CLASS ||
+				   intf->bInterfaceSubClass != AOA_FTRANS_SUBCLASS ||
+				   intf->bInterfaceProtocol != AOA_FTRANS_PROTOCOL)){
+				continue;
+			}else if(PhoneType = PRO_ANDROID&&
+				   intf->bInterfaceClass != INTERFACE_CLASS_AOA){
+				continue;
+			}
+			if(intf->bNumEndpoints != 2) {
+				PRODEBUG("Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+				continue;
+			}
+			if((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+			   (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+			   	interfaceNum = intf->bInterfaceNumber;
+				usb_phone->ep_out = intf->endpoint[1].bEndpointAddress;
+				usb_phone->ep_in = intf->endpoint[0].bEndpointAddress;
+				PRODEBUG("Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+				break;
+			} else if((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+					  (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+				usb_phone->ep_out = intf->endpoint[1].bEndpointAddress;
+				usb_phone->ep_in = intf->endpoint[0].bEndpointAddress;				
+			   	interfaceNum = intf->bInterfaceNumber;
+				PRODEBUG("Found interface %d with swapped endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+				break;
+			} else {
+				PRODEBUG("Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+			}
+		}
+		
+		if(j == config->bNumInterfaces){
+			PRODEBUG("Could not find a suitable USB interface for device %d-%d", bus, address);
+			libusb_free_config_descriptor(config);
+			libusb_close(handle);
+			continue;
+		}	
+		libusb_free_config_descriptor(config);
+		
+		if((res = libusb_claim_interface(handle, interfaceNum)) != 0) {
+			PRODEBUG("Could not claim interface %d for device %d-%d: %d", usbdev->interface, bus, address, res);
+			libusb_close(handle);
+			continue;
+		}
+
+		usb_phone->os_priv = (void*)handle;
+		usb_phone->bus_number= bus;
+		usb_phone->device_address= address;
+		usb_phone->wMaxPacketSize = libusb_get_max_packet_size(dev, usb_phone->ep_out);
+		if (usb_phone->wMaxPacketSize <= 0) {
+			PRODEBUG("Could not determine wMaxPacketSize for device %d-%d, setting to 64", usbdev->bus, usbdev->address);
+			usb_phone->wMaxPacketSize = 64;
+		} else {
+			PRODEBUG("Using wMaxPacketSize=%d for device %d-%d", usbdev->wMaxPacketSize, usbdev->bus, usbdev->address);
+		}
+		/*Set Global var*/
+		uSinfo.usType = PhoneType;
+		uSinfo.VendorID = devdesc.idVendor;
+		uSinfo.ProductID = devdesc.idProduct;
+		uSinfo.State = CONN_CONNECTING;
+		
+		/*We need to set global buffer to uSinfo*/
+		uSinfo.itunes.ib_buf = usbBuffer;
+		uSinfo.itunes.ib_capacity = sizeof(usbBuffer);
+		if(uSinfo.usType == PRO_IOS){
+			uSinfo.itunes.max_payload = uSinfo.itunes.ib_capacity - IOS_PROHEADER(uSinfo.itunes.version);
+		}else{
+			uSinfo.itunes.max_payload = uSinfo.itunes.ib_capacity;
+		}
+		
+		libusb_free_device_list(devs, 1);
+		PRODEBUG("Phone Change to CONNCETING State.\r\n");
+		return PROTOCOL_REOK;		
+	}
+
+	libusb_free_device_list(devs, 1);
+	
+	return PROTOCOL_REGEN;
 }
 #endif
 

@@ -10,7 +10,34 @@
 #include <stdint.h>
 #include "usDisk.h"
 #include "usUsb.h"
+#include "usSys.h"
+#if defined(NXP_CHIP_18XX)
 #include "MassStorageHost.h"
+#elif defined(LINUX)
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/resource.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <pwd.h>
+#include <grp.h>
+#include <pthread.h>
+#include <dirent.h>
+#include <sys/un.h>
+#include <sys/select.h>
+#include <linux/types.h>
+#include <linux/netlink.h>
+#include <sys/ioctl.h>
+#include <scsi/sg.h>
+#endif
 
 
 #define MSC_FTRANS_CLASS				0x08
@@ -60,7 +87,6 @@ static uint8_t NXP_COMPFUNC_MSC_CLASS(void* const CurrentDescriptor)
 
 	return DESCRIPTOR_SEARCH_NotFound;
 }
-#endif
 
 uint8_t usDisk_DeviceDetect(void *os_priv)
 {	
@@ -77,7 +103,7 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 		DSKDEBUG("usUusb_GetDeviceDescriptor Failed\r\n");
 		return DISK_REGEN;
 	}
-#if defined(NXP_CHIP_18XX)	
+	
 	/*Set callback*/	
 	nxp_clminface nxpcall;	
 	nxpcall.callbackInterface = NXP_COMPFUNC_MSC_CLASS;
@@ -88,12 +114,6 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 		DSKDEBUG("Attached Device Not a Valid DiskDevice.\r\n");
 		return DISK_REINVAILD;
 	}
-#elif defined(LINUX)
-	if(usUsb_ClaimInterface(usbdev, NULL)){
-		DSKDEBUG("Attached Device Not a Valid DiskDevice.\r\n");
-		return DISK_REINVAILD;
-	}
-#endif
 
 	if(usUsb_GetMaxLUN(usbdev, &MaxLUNIndex)){		
 		DSKDEBUG("Get LUN Failed\r\n");
@@ -123,8 +143,79 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 	DSKDEBUG("Mass Storage Device Enumerated.\r\n");
 	uDinfo.disknum=1;
 	
-	return DISK_REGEN;
+	return DISK_REOK;
 }
+
+#elif defined(LINUX)
+
+usb_device disk_phone;
+char dev[256];
+uint8_t usDisk_DeviceDetect(void *os_priv)
+{
+	unsigned char sense_b[32] = {0};
+	unsigned char rcap_buff[8] = {0};
+	unsigned char cmd[] = {0x25, 0, 0, 0 , 0, 0};
+	struct sg_io_hdr io_hdr;
+	unsigned int lastblock, blocksize;
+	int dev_fd;
+	int64_t disk_cap = 0;
+	
+	memset(&uDinfo, 0, sizeof(uDinfo));
+	strcpy(dev, os_priv);
+	disk_phone.os_priv = dev;
+	memcpy(&uDinfo.diskdev, &disk_phone, sizeof(usb_device));
+
+
+
+	dev_fd= open(dev, O_RDWR | O_NONBLOCK);
+	if (dev_fd < 0 && errno == EROFS)
+		dev_fd = open(dev, O_RDONLY | O_NONBLOCK);
+	if (dev_fd<0){
+		DSKDEBUG("Open %s Failed:%s", dev, strerror(errno));
+		return DISK_REGEN; 
+	}
+
+	memset(&io_hdr, 0, sizeof(struct sg_io_hdr));
+	io_hdr.interface_id = 'S';
+	io_hdr.cmd_len = sizeof(cmd);
+	io_hdr.dxferp = rcap_buff;
+	io_hdr.dxfer_len = 8;
+	io_hdr.mx_sb_len = sizeof(sense_b);
+	io_hdr.dxfer_direction = SG_DXFER_FROM_DEV;
+	io_hdr.cmdp = cmd;
+	io_hdr.sbp = sense_b;
+	io_hdr.timeout = 20000;
+
+	if(ioctl(dev_fd, SG_IO, &io_hdr)<0){
+		DSKDEBUG("IOCTRL error:%s[Used BLKGETSIZE64]!", strerror(errno));
+		if (ioctl(dev_fd, BLKGETSIZE64, &disk_cap) != 0) {			
+			DSKDEBUG("Get Disk Capatiy Failed");
+		}		
+		DSKDEBUG("Disk Capacity = %lld Bytes", disk_cap);
+		close(dev_fd);
+		uDinfo.BlockSize = 512;		
+		uDinfo.disknum=1;
+		return DISK_REOK;
+	}
+
+	/* Address of last disk block */
+	lastblock =  ((rcap_buff[0]<<24)|(rcap_buff[1]<<16)|
+	(rcap_buff[2]<<8)|(rcap_buff[3]));
+
+	/* Block size */
+	blocksize =  ((rcap_buff[4]<<24)|(rcap_buff[5]<<16)|
+	(rcap_buff[6]<<8)|(rcap_buff[7]));
+
+	/* Calculate disk capacity */
+	uDinfo.Blocks= (lastblock+1);
+	uDinfo.BlockSize= blocksize;	
+	uDinfo.disknum=1;
+	DSKDEBUG("Disk Blocks = %lld BlockSize = %lld\n", uDinfo.Blocks, uDinfo.BlockSize);
+	close(dev_fd);
+
+	return DISK_REOK;
+}
+#endif
 
 uint8_t usDisk_DeviceDisConnect(void)
 {

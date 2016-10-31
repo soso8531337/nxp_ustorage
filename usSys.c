@@ -13,7 +13,7 @@
 /* Function to spin forever when there is an error */
 void die(uint8_t rc)
 {
-	DEBUGOUT("*******DIE %d*******\r\n", rc);
+	printf("*******DIE %d*******\r\n", rc);
 	while (1) {}/* Spin for ever */
 }
 

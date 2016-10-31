@@ -29,15 +29,31 @@
  * copyright, permission, and disclaimer notice must appear in all copies of
  * this code.
  */
-
+ 
+ #include "usUsb.h"
+#include "usDisk.h"
+#include "usProtocol.h"
+#include "usSys.h"
+#if defined(NXP_CHIP_18XX)
 #include "MassStorageHost.h"
 #include "fsusb_cfg.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include "usUsb.h"
-#include "usDisk.h"
-#include "usProtocol.h"
-#include "usSys.h"
+#elif defined(LINUX)
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/resource.h>
+#include <fcntl.h>
+#endif
+
 /*****************************************************************************
  * Private types/enumerations/variables
  ****************************************************************************/
@@ -49,6 +65,7 @@
 
 #define USS_HEADER			(sizeof(struct scsi_head))
 
+#if defined(NXP_CHIP_18XX)
 /** LPCUSBlib Mass Storage Class driver interface configuration and state information. This structure is
  *  passed to all Mass Storage Class driver functions, so that multiple instances of the same class
  *  within a device can be differentiated from one another.
@@ -114,6 +131,7 @@ static void SetupHardware(void)
 #endif
 }
 
+#endif //#if defined(NXP_CHIP_18XX)
 /*****************************************************************************
  * Private functions
  ****************************************************************************/
@@ -330,6 +348,7 @@ static int usStorage_Handle(void)
  * Public functions
  ****************************************************************************/
 
+#if defined(NXP_CHIP_18XX)
 /** Main program entry point. This routine configures the hardware required by the application, then
  *  calls the filesystem function to read files from USB Disk
  *Ustorage Project by Szitman 20161022
@@ -422,3 +441,29 @@ void EVENT_USB_Host_DeviceEnumerationFailed(const uint8_t corenum,
 			 corenum, ErrorCode, SubErrorCode, USB_HostState[corenum]);
 
 }
+#elif defined(LINUX)
+int main(int argc, char **argv)
+{
+	static int	initd = 0;
+	
+	SDEBUGOUT("U-Storage Running.\r\n");
+	while(1){
+		if (initd == 0 && usProtocol_DeviceDetect(NULL) &&
+					usDisk_DeviceDetect(NULL)) {
+			SDEBUGOUT("Wait Phone OK.\r\n");
+			usleep(500000);
+			continue;
+		}else{
+			initd = 1;
+		}
+		
+		/*Connect Phone Device*/
+		if(usProtocol_ConnectPhone()){
+			/*Connect to Phone Failed*/
+			continue;
+		}
+		usStorage_Handle();
+	}
+}
+#endif //#if defined(NXP_CHIP_18XX)
+

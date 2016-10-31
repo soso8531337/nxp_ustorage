@@ -15,8 +15,11 @@
 #include "MassStorageHost.h"
 #include "fsusb_cfg.h"
 #elif defined(LINUX)
-
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <libusb-1.0/libusb.h>
 #endif
 
 enum{
@@ -512,7 +515,7 @@ uint8_t LINUX_DiskReadSectors(usb_device *usbdev,
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 	int fd;
-	char devname[512] = {0};
+	char *devname = (char*)usbdev->os_priv;
 	
 	fd = open(devname, O_RDWR);
 	if(fd < 0){
@@ -538,7 +541,7 @@ uint8_t LINUX_DiskWriteSectors(usb_device *usbdev,
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 	int fd;
-	char devname[512] = {0};
+	char *devname = (char*)usbdev->os_priv;
 	
 	fd = open(devname, O_RDWR);
 	if(fd < 0){
@@ -559,13 +562,6 @@ uint8_t LINUX_DiskWriteSectors(usb_device *usbdev,
 	
 	return USB_REOK;
 }
-
-
-
-
-
-
-
 
 #endif
 
