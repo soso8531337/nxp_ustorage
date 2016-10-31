@@ -19,6 +19,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <libusb-1.0/libusb.h>
 #endif
 
@@ -482,11 +486,14 @@ static uint8_t LINUX_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint
 }
 static uint8_t LINUX_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData)
 {
+	libusb_device_handle *dev_handle;
+
 	if(!DeviceDescriptorData || !usbdev){
 		return USB_REPARA;
 	}
-	if(libusb_get_device_descriptor((struct libusb_device_handle *)(usbdev->os_priv), 
-					(libusb_device_descriptor*)DeviceDescriptorData)){
+	dev_handle = (libusb_device_handle*)(usbdev->os_priv);
+	if(libusb_get_device_descriptor(dev_handle->dev, 
+					(struct libusb_device_descriptor*)DeviceDescriptorData)){
 		USBDEBUG("Error Getting Device Descriptor.\r\n");
 		return USB_REGEN;
 	}
