@@ -434,15 +434,19 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 		uSdev->protlen = hdr->len+sizeof(struct scsi_head);
 		uSdev->prohlen = sizeof(struct scsi_head);
 		tbuffer += uSdev->prohlen;
+
 		if(uSdev->protlen<= uSdev->max_payload){
-			PRODEBUG("We Can Receive it Finish one time..\r\n");
-			if(hdr->len && 
+			PRODEBUG("We Can Receive it Finish one time[total=%d header.len=%d]..\r\n",
+					uSdev->protlen, hdr->len);
+			if(hdr->ctrid == SCSI_WRITE &&hdr->len && 
 					usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, hdr->len)){
 				PRODEBUG("Receive aoa Package Header Error\r\n");
 				return PROTOCOL_REGEN;
 			}
 			*buffer = uSdev->ib_buf;
 			*rsize = uSdev->protlen;
+			PRODEBUG("Receive aoa Package[once]-->buffer:%p Recvsize:%d Total:%d Handle:%d\r\n",
+				uSdev->ib_buf, *rsize, uSdev->protlen, uSdev->prohlen);					
 			return PROTOCOL_REOK;
 		}
 		*rsize = uSdev->prohlen;

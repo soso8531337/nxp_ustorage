@@ -358,6 +358,10 @@ void vs_main(void *pvParameters)
 	SetupHardware();
 
 	SDEBUGOUT("U-Storage Running.\r\n");
+	while (USB_HostState[1] != HOST_STATE_Configured) {
+		USB_USBTask(1, USB_MODE_Host);
+		continue;
+	}	
 	while(1){
 		if (USB_HostState[0] != HOST_STATE_Configured) {
 			USB_USBTask(0, USB_MODE_Host);
