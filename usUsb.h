@@ -197,8 +197,10 @@ typedef struct {
 uint8_t usUsb_SendControlRequest(usb_device *usbdev, 
 			uint8_t bmRequestType, uint8_t bRequest, 
 			uint16_t wValue, uint16_t wIndex, uint16_t wLength, void *data);
-uint8_t usUsb_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, const uint32_t length);
-uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length);
+uint8_t usUsb_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, 
+															const uint32_t length, uint32_t *actual_length);
+uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, 
+															uint32_t length, uint32_t *actual_length);
 uint8_t usUsb_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData);
 uint8_t usUsb_GetDeviceConfigDescriptor(usb_device *usbdev, uint8_t index, uint16_t *cfgsize,
 					uint8_t *ConfigDescriptorData, uint16_t ConfigDescriptorDataLen);

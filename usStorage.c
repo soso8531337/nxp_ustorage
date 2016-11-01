@@ -219,9 +219,10 @@ static int usStorage_diskREAD(struct scsi_head *header)
 static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_head *header)
 {
 	uint32_t hSize = recvSize;
-	uint32_t paySize, curSize = 0;
+	uint32_t paySize, curSize = 0, secSize = 0;
 	int32_t addr;	
 	uint8_t *pbuffer;
+	uint8_t sector[512] = {0};
 
 	if(!buffer || !header){
 		SDEBUGOUT("usStorage_diskWRITE Parameter Error\r\n");
@@ -235,16 +236,19 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 	/*Write the first payload*/
 	paySize= recvSize-sizeof(struct scsi_head);
 	if(paySize % 512){
-		SDEBUGOUT("usStorage_diskWRITE paySize  is %d\r\n", paySize);
-		return 1;
+		memcpy(sector, buffer+paySize/512, paySize % 512);
+		secSize = paySize % 512;
+		SDEBUGOUT("usStorage_diskWRITE paySize  is [%d/%d] Not a complete Sector\r\n", 
+								secSize, paySize);
 	}
-	if(usDisk_DiskWriteSectors(buffer+sizeof(struct scsi_head), addr, paySize / 512)){
+	if(paySize / 512 && 
+			usDisk_DiskWriteSectors(buffer+sizeof(struct scsi_head), addr, paySize / 512)){
 		SDEBUGOUT("Write Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
 				paySize, addr, paySize / 512);
 		return 1;
 	}
 	addr += paySize / 512;
-	curSize = paySize;
+	curSize = paySize-secSize;
 	while(curSize < header->len){
 		uint32_t secCount = 0;
 		if(usProtocol_RecvPackage((void **)&pbuffer, hSize, &paySize)){

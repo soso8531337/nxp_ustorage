@@ -66,13 +66,14 @@ static uint8_t NXP_SendControlRequest(const uint8_t corenum,
 
 	return USB_Host_SendControlRequest(corenum,data);
 }
-static uint8_t NXP_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length)
+static uint8_t NXP_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, 
+													uint32_t length, uint32_t *actual_length)
 {
 	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
 	uint8_t ErrorCallback = 0;
 	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
 
-	if(!usbdev || !buffer){
+	if(!usbdev || !buffer || !actual_length){
 		return USB_REPARA;
 	}
 	Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
@@ -94,16 +95,18 @@ static uint8_t NXP_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32
 		USBDEBUG("CallBack Excute Error Something Happen...\r\n");
 		return USB_REGEN;
 	}
+	*actual_length = length;
 
 	return USB_REOK;
 }	
 
-static uint8_t NXP_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, uint32_t length)
+static uint8_t NXP_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, 
+													uint32_t length, uint32_t *actual_length)
 {
 	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
 	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
 
-	if(!usbdev || !buffer){
+	if(!usbdev || !buffer || !actual_length){
 		return USB_REPARA;
 	}
 	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
@@ -119,6 +122,7 @@ static uint8_t NXP_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, uint32_t 
 	Pipe_ClearOUT(MSInterfaceInfo->Config.PortNumber);
 	Pipe_WaitUntilReady(MSInterfaceInfo->Config.PortNumber);
 	Pipe_Freeze();
+	*actual_length = length;
 
 	return USB_REOK;
 }	
@@ -452,11 +456,15 @@ static uint8_t LINUX_SendControlRequest(void* dev_handle,
 	return (rc < 0)?USB_REGEN:USB_REOK;
 }
 
-static uint8_t LINUX_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, uint32_t length)
+static uint8_t LINUX_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, 
+														uint32_t length, uint32_t *actual_length)
 {
 	int8_t rc;
 	int transferred = 0;
 
+	if(!usbdev || !buffer || !actual_length){
+		return USB_REGEN;
+	}
 	rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
 							usbdev->ep_out,
 							buffer,
@@ -494,16 +502,22 @@ static uint8_t LINUX_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, uint32_
 				return USB_REGEN;
 		}		
 	}	
-	USBDEBUG("LIBUSB Send Successful:%d/%d.\r\n", transferred, length);
+
+	*actual_length = transferred;
+	USBDEBUG("LIBUSB Send Successful:%u/%d.\r\n", *actual_length, length);
 
 	return rc?USB_REGEN:USB_REOK;
 }
 
-static uint8_t LINUX_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length)
+static uint8_t LINUX_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, 
+															uint32_t length, uint32_t *actual_length)
 {
 	int8_t rc;
 	int transferred = 0;
 
+	if(!usbdev || !buffer || !actual_length){
+		return USB_REGEN;
+	}
 	rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
 							usbdev->ep_in,
 							buffer,
@@ -523,8 +537,9 @@ static uint8_t LINUX_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint
 			}
 			return USB_REGEN;
 	}
-
-	USBDEBUG("LIBUSB Receive %d/%d.\r\n", transferred, length);
+	
+	*actual_length = transferred;
+	USBDEBUG("LIBUSB Receive %u/%d.\r\n", *actual_length, length);
 
 	return rc?USB_REGEN:USB_REOK;
 }
@@ -659,21 +674,23 @@ uint8_t usUsb_SendControlRequest(usb_device *usbdev,
 #endif
 }
 
-uint8_t usUsb_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, const uint32_t length)
+uint8_t usUsb_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, 
+												const uint32_t length, uint32_t *actual_length)
 {
 #if defined(NXP_CHIP_18XX)
-	return NXP_BlukPacketSend(usbdev, buffer, length);
+	return NXP_BlukPacketSend(usbdev, buffer, length, actual_length);
 #elif defined(LINUX)
-	return LINUX_BlukPacketSend(usbdev, buffer, length);
+	return LINUX_BlukPacketSend(usbdev, buffer, length, actual_length);
 #endif
 }
 
-uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length)
+uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, 
+															uint32_t length, uint32_t *actual_length)
 {
 #if defined(NXP_CHIP_18XX)
-	return NXP_BlukPacketReceive(usbdev, buffer, length);
+	return NXP_BlukPacketReceive(usbdev, buffer, length, actual_length);
 #elif defined(LINUX)
-	return LINUX_BlukPacketReceive(usbdev, buffer, length);
+	return LINUX_BlukPacketReceive(usbdev, buffer, length, actual_length);
 #endif
 
 }
