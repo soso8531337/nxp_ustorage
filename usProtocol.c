@@ -750,11 +750,11 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 
 	// potentially blocking operations follow; they will only run when new devices are detected, which is acceptable
 	if((res = libusb_open(dev, &handle)) != 0) {
-		PRODEBUG("Could not open device %d-%d: %d", bus, address, res);
+		PRODEBUG("Could not open device %d-%d: %d\n", bus, address, res);
 		return PROTOCOL_REGEN;
 	}
 	if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
-		PRODEBUG("Could not get configuration descriptor for device %d-%d: %d", bus, address, res);
+		PRODEBUG("Could not get configuration descriptor for device %d-%d: %d\n", bus, address, res);
 		libusb_close(handle);
 		return PROTOCOL_REGEN;
 	}
@@ -772,23 +772,23 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 					      AOA_GET_PROTOCOL, 0, 0, version,
 					      sizeof(version), 0);
 		if (res < 0) {
-			PRODEBUG("Could not getting AOA protocol %d-%d: %d", bus, address, res);
+			PRODEBUG("Could not getting AOA protocol %d-%d: %d\n", bus, address, res);
 			libusb_free_config_descriptor(config);
 			libusb_close(handle);
 			return PROTOCOL_REGEN;
 		}else{
 			acc_default.aoa_version = ((version[1] << 8) | version[0]);
-			PRODEBUG("Device[%d-%d] supports AOA %d.0!", bus, address, acc_default.aoa_version);
+			PRODEBUG("Device[%d-%d] supports AOA %d.0!\n", bus, address, acc_default.aoa_version);
 		}
 		/* In case of a no_app accessory, the version must be >= 2 */
 		if((acc_default.aoa_version < 2) && !acc_default.manufacturer) {
-			PRODEBUG("Connecting without an Android App only for AOA 2.0[%d-%d]", bus,address);
+			PRODEBUG("Connecting without an Android App only for AOA 2.0[%d-%d]\n", bus,address);
 			libusb_free_config_descriptor(config);
 			libusb_close(handle);
 			return PROTOCOL_REGEN;
 		}
 		if(acc_default.manufacturer) {
-			PRODEBUG("sending manufacturer: %s", acc_default.manufacturer);
+			PRODEBUG("sending manufacturer: %s\n", acc_default.manufacturer);
 			res = libusb_control_transfer(handle,
 						  LIBUSB_ENDPOINT_OUT
 						  | LIBUSB_REQUEST_TYPE_VENDOR,
@@ -797,14 +797,14 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 						  (uint8_t *)acc_default.manufacturer,
 						  strlen(acc_default.manufacturer) + 1, 0);
 			if(res < 0){
-				PRODEBUG("Could not Set AOA manufacturer %d-%d: %d", bus, address, res);
+				PRODEBUG("Could not Set AOA manufacturer %d-%d: %d\n", bus, address, res);
 				libusb_free_config_descriptor(config);
 				libusb_close(handle);
 				return PROTOCOL_REGEN;
 			}
 		}
 		if(acc_default.model) {
-			PRODEBUG("sending model: %s", acc_default.model);
+			PRODEBUG("sending model: %s\n", acc_default.model);
 			res = libusb_control_transfer(handle,
 						  LIBUSB_ENDPOINT_OUT
 						  | LIBUSB_REQUEST_TYPE_VENDOR,
@@ -813,14 +813,14 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 						  (uint8_t *)acc_default.model,
 						  strlen(acc_default.model) + 1, 0);
 			if(res < 0){
-				PRODEBUG("Could not Set AOA model %d-%d: %d", bus, address, res);
+				PRODEBUG("Could not Set AOA model %d-%d: %d\n", bus, address, res);
 				libusb_free_config_descriptor(config);
 				libusb_close(handle);
 				return PROTOCOL_REGEN;
 			}
 		}
 		
-		PRODEBUG("sending description: %s", acc_default.description);
+		PRODEBUG("sending description: %s\n", acc_default.description);
 		res = libusb_control_transfer(handle,
 					  LIBUSB_ENDPOINT_OUT
 					  | LIBUSB_REQUEST_TYPE_VENDOR,
@@ -829,12 +829,12 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 					  (uint8_t *)acc_default.description,
 					  strlen(acc_default.description) + 1, 0);
 		if(res < 0){
-			PRODEBUG("Could not Set AOA description %d-%d: %d", bus, address, res);
+			PRODEBUG("Could not Set AOA description %d-%d: %d\n", bus, address, res);
 			libusb_free_config_descriptor(config);
 			libusb_close(handle);
 			return PROTOCOL_REGEN;
 		}
-		PRODEBUG("sending version string: %s", acc_default.version);
+		PRODEBUG("sending version string: %s\n", acc_default.version);
 		res = libusb_control_transfer(handle,
 					  LIBUSB_ENDPOINT_OUT
 					  | LIBUSB_REQUEST_TYPE_VENDOR,
@@ -843,12 +843,12 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 					  (uint8_t *)acc_default.version,
 					  strlen(acc_default.version) + 1, 0);
 		if(res < 0){
-			PRODEBUG("Could not Set AOA version %d-%d: %d", bus, address, res);
+			PRODEBUG("Could not Set AOA version %d-%d: %d\n", bus, address, res);
 			libusb_free_config_descriptor(config);
 			libusb_close(handle);
 			return PROTOCOL_REGEN;
 		}
-		PRODEBUG("sending url string: %s", acc_default.url);
+		PRODEBUG("sending url string: %s\n", acc_default.url);
 		res = libusb_control_transfer(handle,
 					  LIBUSB_ENDPOINT_OUT
 					  | LIBUSB_REQUEST_TYPE_VENDOR,
@@ -857,12 +857,12 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 					  (uint8_t *)acc_default.url,
 					  strlen(acc_default.url) + 1, 0);
 		if(res < 0){
-			PRODEBUG("Could not Set AOA url %d-%d: %d", bus, address, res);
+			PRODEBUG("Could not Set AOA url %d-%d: %d\n", bus, address, res);
 			libusb_free_config_descriptor(config);
 			libusb_close(handle);
 			return PROTOCOL_REGEN;
 		}
-		PRODEBUG("sending serial number: %s", acc_default.serial);
+		PRODEBUG("sending serial number: %s\n", acc_default.serial);
 		res = libusb_control_transfer(handle,
 					  LIBUSB_ENDPOINT_OUT
 					  | LIBUSB_REQUEST_TYPE_VENDOR,
@@ -871,7 +871,7 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 					  (uint8_t *)acc_default.serial,
 					  strlen(acc_default.serial) + 1, 0);
 		if(res < 0){
-			PRODEBUG("Could not Set AOA serial %d-%d: %d", bus, address, res);
+			PRODEBUG("Could not Set AOA serial %d-%d: %d\n", bus, address, res);
 			libusb_free_config_descriptor(config);
 			libusb_close(handle);
 			return PROTOCOL_REGEN;
@@ -881,12 +881,12 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 					  LIBUSB_REQUEST_TYPE_VENDOR,
 					  AOA_START_ACCESSORY, 0, 0, NULL, 0, 0);
 		if(res < 0){
-			PRODEBUG("Could not Start AOA %d-%d: %d", bus, address, res);
+			PRODEBUG("Could not Start AOA %d-%d: %d\n", bus, address, res);
 			libusb_free_config_descriptor(config);
 			libusb_close(handle);
 			return PROTOCOL_REGEN;
 		}
-		PRODEBUG("Turning the device %d-%d in Accessory mode Successful", bus, address);
+		PRODEBUG("Turning the device %d-%d in Accessory mode Successful\n", bus, address);
 		libusb_free_config_descriptor(config);
 		libusb_close(handle);
 		return PROTOCOL_REOK;
@@ -894,7 +894,7 @@ static uint8_t LINUX_SwitchAOAMode(libusb_device* dev)
 	
 	libusb_free_config_descriptor(config);
 	libusb_close(handle);
-	PRODEBUG("No Found Android Device in %d-%d", bus, address);
+	PRODEBUG("No Found Android Device in %d-%d\n", bus, address);
 
 	return PROTOCOL_REGEN;
 }
@@ -1152,54 +1152,54 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 		uint8_t bus = libusb_get_bus_number(dev);
 		uint8_t address = libusb_get_device_address(dev);
 		if((res = libusb_get_device_descriptor(dev, &devdesc)) != 0) {
-			PRODEBUG("Could not get device descriptor for device %d-%d: %d", bus, address, res);
-			return PROTOCOL_REGEN;
+			PRODEBUG("Could not get device descriptor for device %d-%d: %d\n", bus, address, res);
+			continue;
 		}
 		if(devdesc.idVendor == VID_APPLE &&
 			(devdesc.idProduct >= PID_RANGE_LOW && devdesc.idProduct <= PID_RANGE_MAX)){
-			PRODEBUG("Found IOS device  v/p %04x:%04x at %d-%d", 
+			PRODEBUG("Found IOS device  v/p %04x:%04x at %d-%d\n", 
 					devdesc.idVendor, devdesc.idProduct, bus, address);
 			PhoneType = PRO_IOS;
 		}else if(devdesc.idVendor == AOA_ACCESSORY_VID &&
 			(devdesc.idProduct >= AOA_ACCESSORY_PID && devdesc.idProduct <= AOA_ACCESSORY_AUDIO_ADB_PID)){
-			PRODEBUG("Found Android AOA device  v/p %04x:%04x at %d-%d", 
+			PRODEBUG("Found Android AOA device  v/p %04x:%04x at %d-%d\n", 
 					devdesc.idVendor, devdesc.idProduct, bus, address);
 			PhoneType = PRO_ANDROID;
 		}else{
-			PRODEBUG("Try To Switch Android AOA Mode  v/p %04x:%04x at %d-%d", 
+			PRODEBUG("Try To Switch Android AOA Mode  v/p %04x:%04x at %d-%d\n", 
 						devdesc.idVendor, devdesc.idProduct, bus, address);
 			LINUX_SwitchAOAMode(dev);
-			return PROTOCOL_REGEN;
+			continue;
 		}
 		libusb_device_handle *handle;
-		PRODEBUG("Found new device with v/p %04x:%04x at %d-%d", devdesc.idVendor, devdesc.idProduct, bus, address);
+		PRODEBUG("Found new device with v/p %04x:%04x at %d-%d\n", devdesc.idVendor, devdesc.idProduct, bus, address);
 		// potentially blocking operations follow; they will only run when new devices are detected, which is acceptable
 		if((res = libusb_open(dev, &handle)) != 0) {
-			PRODEBUG("Could not open device %d-%d: %d", bus, address, res);
+			PRODEBUG("Could not open device %d-%d: %d\n", bus, address, res);
 			continue;
 		}
 		
 		int current_config = 0;
 		if((res = libusb_get_configuration(handle, &current_config)) != 0) {
-			PRODEBUG("Could not get configuration for device %d-%d: %d", bus, address, res);
+			PRODEBUG("Could not get configuration for device %d-%d: %d\n", bus, address, res);
 			libusb_close(handle);
 			continue;
 		}
 		if (current_config != devdesc.bNumConfigurations) {
 			struct libusb_config_descriptor *config;
 			if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
-				PRODEBUG("Could not get old configuration descriptor for device %d-%d: %d", bus, address, res);
+				PRODEBUG("Could not get old configuration descriptor for device %d-%d: %d\n", bus, address, res);
 			} else {
 				for(j=0; j<config->bNumInterfaces; j++) {
 					const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
 					if((res = libusb_kernel_driver_active(handle, intf->bInterfaceNumber)) < 0) {
-						PRODEBUG("Could not check kernel ownership of interface %d for device %d-%d: %d", intf->bInterfaceNumber, bus, address, res);
+						PRODEBUG("Could not check kernel ownership of interface %d for device %d-%d: %d\n", intf->bInterfaceNumber, bus, address, res);
 						continue;
 					}
 					if(res == 1) {
-						PRODEBUG("Detaching kernel driver for device %d-%d, interface %d", bus, address, intf->bInterfaceNumber);
+						PRODEBUG("Detaching kernel driver for device %d-%d, interface %d\n", bus, address, intf->bInterfaceNumber);
 						if((res = libusb_detach_kernel_driver(handle, intf->bInterfaceNumber)) < 0) {
-							PRODEBUG("Could not detach kernel driver (%d), configuration change will probably fail!", res);
+							PRODEBUG("Could not detach kernel driver (%d), configuration change will probably fail!\n", res);
 							continue;
 						}
 					}
@@ -1207,9 +1207,9 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 				libusb_free_config_descriptor(config);
 			}
 		
-			PRODEBUG("Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, devdesc.bNumConfigurations);
+			PRODEBUG("Setting configuration for device %d-%d, from %d to %d\n", bus, address, current_config, devdesc.bNumConfigurations);
 			if((res = libusb_set_configuration(handle, devdesc.bNumConfigurations)) != 0) {
-				PRODEBUG("Could not set configuration %d for device %d-%d: %d", devdesc.bNumConfigurations, bus, address, res);
+				PRODEBUG("Could not set configuration %d for device %d-%d: %d\n", devdesc.bNumConfigurations, bus, address, res);
 				libusb_close(handle);
 				continue;
 			}
@@ -1218,7 +1218,7 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 		struct libusb_config_descriptor *config;
 		uint8_t interfaceNum;
 		if((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
-			PRODEBUG("Could not get configuration descriptor for device %d-%d: %d", bus, address, res);
+			PRODEBUG("Could not get configuration descriptor for device %d-%d: %d\n", bus, address, res);
 			libusb_close(handle);
 			continue;
 		}
@@ -1235,7 +1235,7 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 				continue;
 			}
 			if(intf->bNumEndpoints != 2) {
-				PRODEBUG("Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+				PRODEBUG("Endpoint count mismatch for interface %d of device %d-%d\n", intf->bInterfaceNumber, bus, address);
 				continue;
 			}
 			if((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
@@ -1243,22 +1243,22 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 			   	interfaceNum = intf->bInterfaceNumber;
 				usb_phone.ep_out = intf->endpoint[1].bEndpointAddress;
 				usb_phone.ep_in = intf->endpoint[0].bEndpointAddress;
-				PRODEBUG("Found interface %d with endpoints %02x/%02x for device %d-%d", interfaceNum, usb_phone.ep_out, usb_phone.ep_in, bus, address);
+				PRODEBUG("Found interface %d with endpoints %02x/%02x for device %d-%d\n", interfaceNum, usb_phone.ep_out, usb_phone.ep_in, bus, address);
 				break;
 			} else if((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
 					  (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
 				usb_phone.ep_out = intf->endpoint[1].bEndpointAddress;
 				usb_phone.ep_in = intf->endpoint[0].bEndpointAddress;				
 			   	interfaceNum = intf->bInterfaceNumber;
-				PRODEBUG("Found interface %d with swapped endpoints %02x/%02x for device %d-%d", interfaceNum, usb_phone.ep_out, usb_phone.ep_in, bus, address);
+				PRODEBUG("Found interface %d with swapped endpoints %02x/%02x for device %d-%d\n", interfaceNum, usb_phone.ep_out, usb_phone.ep_in, bus, address);
 				break;
 			} else {
-				PRODEBUG("Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+				PRODEBUG("Endpoint type mismatch for interface %d of device %d-%d\n", intf->bInterfaceNumber, bus, address);
 			}
 		}
 		
 		if(j == config->bNumInterfaces){
-			PRODEBUG("Could not find a suitable USB interface for device %d-%d", bus, address);
+			PRODEBUG("Could not find a suitable USB interface for device %d-%d\n", bus, address);
 			libusb_free_config_descriptor(config);
 			libusb_close(handle);
 			continue;
@@ -1266,7 +1266,7 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 		libusb_free_config_descriptor(config);
 		
 		if((res = libusb_claim_interface(handle, interfaceNum)) != 0) {
-			PRODEBUG("Could not claim interface %d for device %d-%d: %d", interfaceNum, bus, address, res);
+			PRODEBUG("Could not claim interface %d for device %d-%d: %d\n", interfaceNum, bus, address, res);
 			libusb_close(handle);
 			continue;
 		}
@@ -1276,10 +1276,10 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 		usb_phone.device_address= address;
 		usb_phone.wMaxPacketSize = libusb_get_max_packet_size(dev, usb_phone.ep_out);
 		if (usb_phone.wMaxPacketSize <= 0) {
-			PRODEBUG("Could not determine wMaxPacketSize for device %d-%d, setting to 64", bus, address);
+			PRODEBUG("Could not determine wMaxPacketSize for device %d-%d, setting to 64\n", bus, address);
 			usb_phone.wMaxPacketSize = 64;
 		} else {
-			PRODEBUG("Using wMaxPacketSize=%d for device %d-%d", usb_phone.wMaxPacketSize, bus, address);
+			PRODEBUG("Using wMaxPacketSize=%d for device %d-%d\n", usb_phone.wMaxPacketSize, bus, address);
 		}
 		/*Set Global var*/
 		uSinfo.usType = PhoneType;
