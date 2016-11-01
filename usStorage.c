@@ -190,12 +190,10 @@ static int usStorage_diskREAD(struct scsi_head *header)
 			SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
 			return 1;
 		}
-		SDEBUGOUT("AvaiableBuffer 0x%p[%dBytes][DiskSector:%d DiskReadLen:%d]\r\n", 
-						buffer, size, header->addr, header->len);
 
 		avsize = min(512*(size /512), header->len-rsize); /*We leave a sector for safe*/		
 		secCount = avsize/512;
-		if(usDisk_DiskReadSectors(buffer+rsize, addr, secCount)){
+		if(usDisk_DiskReadSectors(buffer, addr, secCount)){
 			SDEBUGOUT("Read Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
 					rsize, addr, secCount);
 			return 1;
@@ -206,8 +204,8 @@ static int usStorage_diskREAD(struct scsi_head *header)
 					rsize, addr, secCount);
 			return 1;
 		}
-		
-		SDEBUGOUT("UPDate Sector------>%d-->%d\r\n",addr, addr +secCount);
+		SDEBUGOUT("AvaiableBuffer 0x%p[%d/%dBytes][DiskSector:%d[%d-->%d] DiskReadLen:%d]\r\n", 
+						buffer, size, avsize, header->addr, addr, addr +secCount, header->len);
 		addr += secCount;
 		rsize += avsize;
 	}
@@ -452,8 +450,8 @@ int main(int argc, char **argv)
 	
 	SDEBUGOUT("U-Storage Running.\r\n");
 	while(1){
-		if (initd == 0 && usProtocol_DeviceDetect(NULL) &&
-					usDisk_DeviceDetect(NULL)) {
+		if (initd == 0 && (usProtocol_DeviceDetect(NULL) ||
+					usDisk_DeviceDetect("/dev/sda"))) {
 			SDEBUGOUT("Wait Phone OK.\r\n");
 			usleep(500000);
 			continue;

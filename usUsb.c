@@ -455,16 +455,46 @@ static uint8_t LINUX_SendControlRequest(void* dev_handle,
 static uint8_t LINUX_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, uint32_t length)
 {
 	int8_t rc;
-	int transferred;
+	int transferred = 0;
 
 	rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
-							LIBUSB_ENDPOINT_OUT,
+							usbdev->ep_out,
 							buffer,
 							length,
 							&transferred,
 							0);
-
-	USBDEBUG("LIBUSB Send %d/%d.\r\n", transferred, length);
+	if(rc < 0){
+			if (rc  == LIBUSB_ERROR_TIMEOUT){
+				USBDEBUG("LIBUSB Send Timeout\n");
+			}else if(rc == LIBUSB_ERROR_NO_DEVICE){
+				USBDEBUG("Device OffLine....\n");
+			}else{
+				USBDEBUG("LIBUSB bulk transfer error %d\n", rc);
+			}
+			return USB_REGEN;
+	}
+	if(length % usbdev->wMaxPacketSize == 0){
+		uint8_t buf[1];		
+		int transfer = 0;
+		USBDEBUG("LIBUSB Send ZLP.\r\n");
+		rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
+								usbdev->ep_out,
+								buf,
+								0,
+								&transfer,
+								0);
+		if(rc < 0){
+				if (rc  == LIBUSB_ERROR_TIMEOUT){
+					USBDEBUG("LIBUSB Send ZLP Timeout\n");
+				}else if(rc == LIBUSB_ERROR_NO_DEVICE){
+					USBDEBUG("Device OffLine....\n");
+				}else{
+					USBDEBUG("LIBUSB bulk transfer  ZLP error %d\n", rc);
+				}
+				return USB_REGEN;
+		}		
+	}	
+	USBDEBUG("LIBUSB Send Successful:%d/%d.\r\n", transferred, length);
 
 	return rc?USB_REGEN:USB_REOK;
 }
@@ -472,14 +502,27 @@ static uint8_t LINUX_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, uint32_
 static uint8_t LINUX_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, uint32_t length)
 {
 	int8_t rc;
-	int transferred;
+	int transferred = 0;
 
 	rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
-							LIBUSB_ENDPOINT_IN,
+							usbdev->ep_in,
 							buffer,
 							length,
 							&transferred,
 							0);
+	if(rc < 0){
+			if (rc  == LIBUSB_ERROR_TIMEOUT){
+				USBDEBUG("LIBUSB Receive Timeout\n");
+			}else if(rc == LIBUSB_ERROR_NO_DEVICE){
+				USBDEBUG("Device OffLine....\n");
+			}else if(rc == LIBUSB_ERROR_OVERFLOW){
+				USBDEBUG("LIBUSB OverFlow[%p/%d/%dBytes]....\n", 
+							buffer, length, transferred);
+			}else{
+				USBDEBUG("LIBUSB bulk transfer error %d\n", rc);
+			}
+			return USB_REGEN;
+	}
 
 	USBDEBUG("LIBUSB Receive %d/%d.\r\n", transferred, length);
 

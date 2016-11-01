@@ -163,13 +163,14 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 	unsigned int lastblock, blocksize;
 	int dev_fd;
 	int64_t disk_cap = 0;
-	
+
+	if(os_priv == NULL){
+		return DISK_REGEN;
+	}
 	memset(&uDinfo, 0, sizeof(uDinfo));
 	strcpy(dev, os_priv);
 	disk_phone.os_priv = dev;
 	memcpy(&uDinfo.diskdev, &disk_phone, sizeof(usb_device));
-
-
 
 	dev_fd= open(dev, O_RDWR | O_NONBLOCK);
 	if (dev_fd < 0 && errno == EROFS)

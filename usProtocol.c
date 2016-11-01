@@ -429,12 +429,18 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 			return PROTOCOL_REGEN;
 		}
 		hdr = (struct scsi_head *)tbuffer;
+		PRODEBUG("Receive First aoa Package Finish-->wtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
+						hdr->wtag, hdr->ctrid, hdr->addr, hdr->len, hdr->wlun);		
 		/*Check Protocol header*/
 		if(hdr->head != SCSI_PHONE_MAGIC){
 			PRODEBUG("AOA Package Header Error:0x%x\r\n", hdr->head);
 			return PROTOCOL_REGEN;
 		}
-		uSdev->protlen = hdr->len+sizeof(struct scsi_head);
+		if(hdr->ctrid == SCSI_WRITE){
+			uSdev->protlen = hdr->len+sizeof(struct scsi_head);
+		}else{
+			uSdev->protlen = sizeof(struct scsi_head);
+		}
 		uSdev->prohlen = sizeof(struct scsi_head);
 		tbuffer += uSdev->prohlen;
 
@@ -462,7 +468,8 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 	Recvsize = uSdev->max_payload-(tbuffer-uSdev->ib_buf);
 	Recvsize = Recvsize-Recvsize%512;
 	Recvsize = min(Recvsize, (uSdev->protlen-uSdev->prohlen));
-	PRODEBUG("Prepare Receive aoa Package %d\r\n", Recvsize);
+	PRODEBUG("Prepare Receive aoa Package %d[%d/%d]\r\n", 
+					Recvsize, uSdev->protlen, uSdev->prohlen);
 	if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, Recvsize)){
 		PRODEBUG("Receive aoa Package Header Error\r\n");
 		return PROTOCOL_REGEN;
@@ -1064,7 +1071,10 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 	USB_StdDesDevice_t DeviceDescriptorData;
 	int8_t PhoneType = -1;
 	nxp_clminface nxpcall;
-	
+
+	if(uSinfo.State== CONN_CONNECTING){
+		return PROTOCOL_REOK;
+	}
 	usb_device *usbdev = &(uSinfo.itunes.usbdev);
 	/*We need to memset*/
 	memset(&uSinfo, 0, sizeof(uSinfo));
@@ -1295,7 +1305,8 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 		}else{
 			uSinfo.itunes.max_payload = uSinfo.itunes.ib_capacity;
 		}
-		
+		/*set usbdev*/
+		memcpy(&uSinfo.itunes.usbdev, &usb_phone, sizeof(usb_device));
 		libusb_free_device_list(devs, 1);
 		PRODEBUG("Phone Change to CONNCETING State.\r\n");
 		return PROTOCOL_REOK;		
