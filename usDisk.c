@@ -214,7 +214,7 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 	uDinfo.Blocks= (lastblock+1);
 	uDinfo.BlockSize= blocksize;	
 	uDinfo.disknum=1;
-	DSKDEBUG("Disk Blocks = %lld BlockSize = %lld\n", uDinfo.Blocks, uDinfo.BlockSize);
+	DSKDEBUG("Disk Blocks = %u BlockSize = %u\n", uDinfo.Blocks, uDinfo.BlockSize);
 	close(dev_fd);
 
 	return DISK_REOK;

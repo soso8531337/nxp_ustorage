@@ -1137,8 +1137,10 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 	int cnt, i, res, j;
 	libusb_device **devs;	
 	int8_t PhoneType = -1;
-
+	
 	memset(&usb_phone, 0, sizeof(usb_device));
+	usUsb_Init(NULL, os_priv);
+	
 	cnt = libusb_get_device_list(NULL, &devs);
 	if(cnt < 0){
 		PRODEBUG("Get Device List Failed.\r\n");
@@ -1241,14 +1243,14 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 			   	interfaceNum = intf->bInterfaceNumber;
 				usb_phone.ep_out = intf->endpoint[1].bEndpointAddress;
 				usb_phone.ep_in = intf->endpoint[0].bEndpointAddress;
-				PRODEBUG("Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+				PRODEBUG("Found interface %d with endpoints %02x/%02x for device %d-%d", interfaceNum, usb_phone.ep_out, usb_phone.ep_in, bus, address);
 				break;
 			} else if((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
 					  (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
 				usb_phone.ep_out = intf->endpoint[1].bEndpointAddress;
 				usb_phone.ep_in = intf->endpoint[0].bEndpointAddress;				
 			   	interfaceNum = intf->bInterfaceNumber;
-				PRODEBUG("Found interface %d with swapped endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in, bus, address);
+				PRODEBUG("Found interface %d with swapped endpoints %02x/%02x for device %d-%d", interfaceNum, usb_phone.ep_out, usb_phone.ep_in, bus, address);
 				break;
 			} else {
 				PRODEBUG("Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
@@ -1264,7 +1266,7 @@ uint8_t usProtocol_DeviceDetect(void *os_priv)
 		libusb_free_config_descriptor(config);
 		
 		if((res = libusb_claim_interface(handle, interfaceNum)) != 0) {
-			PRODEBUG("Could not claim interface %d for device %d-%d: %d", usbdev->interface, bus, address, res);
+			PRODEBUG("Could not claim interface %d for device %d-%d: %d", interfaceNum, bus, address, res);
 			libusb_close(handle);
 			continue;
 		}

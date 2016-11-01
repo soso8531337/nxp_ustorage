@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 #include <libusb-1.0/libusb.h>
 #endif
 
@@ -515,6 +516,18 @@ static uint8_t LINUX_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgin
 
 static uint8_t LINUX_Init(usb_device *usbdev, void *os_priv)
 {
+	static uint8_t usbinit = 0;
+	int res;
+
+	if(usbinit == 1){
+		return USB_REOK;
+	}
+	res = libusb_init(NULL);
+	//libusb_set_debug(NULL, 3);
+	if(res != 0) {
+		USBDEBUG("libusb_init failed: %d", res);
+		return USB_REGEN;
+	}
 	return USB_REOK;
 }
 
