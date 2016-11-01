@@ -63,7 +63,9 @@
 #define SDEBUGOUT(...)
 #endif
 
-#define USS_HEADER			(sizeof(struct scsi_head))
+#define USDISK_SECTOR		512
+#define OP_DIV(x)			((x)/USDISK_SECTOR)
+#define OP_MOD(x)			((x)%USDISK_SECTOR)
 
 #if defined(NXP_CHIP_18XX)
 /** LPCUSBlib Mass Storage Class driver interface configuration and state information. This structure is
@@ -148,9 +150,9 @@ static int usStorage_sendHEAD(struct scsi_head *header)
 		SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
 		return 1;
 	}
-	memcpy(buffer, header, USS_HEADER);
+	memcpy(buffer, header, PRO_HDR);
 	/*Send To Phone*/
-	if(usProtocol_SendPackage(buffer, USS_HEADER)){
+	if(usProtocol_SendPackage(buffer, PRO_HDR)){
 		SDEBUGOUT("Send To Phone[Just Header Error]\r\n");
 		return 1;
 	}
@@ -174,14 +176,14 @@ static int usStorage_diskREAD(struct scsi_head *header)
 		SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
 		return 1;
 	}
-	memcpy(buffer, header, USS_HEADER);
+	memcpy(buffer, header, PRO_HDR);
 	/*Send To Phone*/
-	if(usProtocol_SendPackage(buffer, USS_HEADER)){
+	if(usProtocol_SendPackage(buffer, PRO_HDR)){
 		SDEBUGOUT("Send To Phone[Just Header Error]\r\n");
 		return 1;
 	}
 	if(!header->len){		
-		SDEBUGOUT("Send Header Successful\r\n");
+		SDEBUGOUT("Read Request Len is 0[MayBeError]\r\n");
 		return 0;
 	}
 	while(rsize < header->len){
@@ -191,8 +193,8 @@ static int usStorage_diskREAD(struct scsi_head *header)
 			return 1;
 		}
 
-		avsize = min(512*(size /512), header->len-rsize); /*We leave a sector for safe*/		
-		secCount = avsize/512;
+		avsize = min(USDISK_SECTOR*OP_DIV(size), header->len-rsize); /*We leave a sector for safe*/		
+		secCount = OP_DIV(avsize);
 		if(usDisk_DiskReadSectors(buffer, addr, secCount)){
 			SDEBUGOUT("Read Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
 					rsize, addr, secCount);
@@ -204,13 +206,13 @@ static int usStorage_diskREAD(struct scsi_head *header)
 					rsize, addr, secCount);
 			return 1;
 		}
-		SDEBUGOUT("AvaiableBuffer 0x%p[%d/%dBytes][DiskSector:%d[%d-->%d] DiskReadLen:%d]\r\n", 
-						buffer, size, avsize, header->addr, addr, addr +secCount, header->len);
+		SDEBUGOUT("READ INFO:0x%p[SZ:%dBytes][DS:%d(%d-->%d) [TS:%dBytes]\r\n", 
+						buffer, avsize, header->addr, addr, addr +secCount, header->len);
 		addr += secCount;
 		rsize += avsize;
 	}
 
-	SDEBUGOUT("usStorage_diskREAD Finish Successful\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
+	SDEBUGOUT("REQUEST READ OK:\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
 			header->wtag, header->ctrid, header->addr, header->len, header->wlun);
 	
 	return 0;
@@ -219,10 +221,9 @@ static int usStorage_diskREAD(struct scsi_head *header)
 static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_head *header)
 {
 	uint32_t hSize = recvSize;
-	uint32_t paySize, curSize = 0, secSize = 0;
+	uint32_t paySize, curSize = 0, secSize = 0, sdivSize = 0;
 	int32_t addr;	
-	uint8_t *pbuffer;
-	uint8_t sector[512] = {0};
+	uint8_t sector[USDISK_SECTOR] = {0};
 
 	if(!buffer || !header){
 		SDEBUGOUT("usStorage_diskWRITE Parameter Error\r\n");
@@ -234,42 +235,68 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 	}
 	addr = header->addr;
 	/*Write the first payload*/
-	paySize= recvSize-sizeof(struct scsi_head);
-	if(paySize % 512){
-		memcpy(sector, buffer+paySize/512, paySize % 512);
-		secSize = paySize % 512;
-		SDEBUGOUT("usStorage_diskWRITE paySize  is [%d/%d] Not a complete Sector\r\n", 
-								secSize, paySize);
+	paySize= recvSize-PRO_HDR;
+	if((secSize = OP_MOD(paySize))){
+		memcpy(sector, buffer+PRO_HDR+OP_DIV(paySize)*USDISK_SECTOR, 
+					secSize);
+		SDEBUGOUT("REQUEST WRITE: InComplete Sector Detect[BEGIN]:%d/%dBytes\r\n", 
+								secSize, USDISK_SECTOR);
 	}
-	if(paySize / 512 && 
-			usDisk_DiskWriteSectors(buffer+sizeof(struct scsi_head), addr, paySize / 512)){
-		SDEBUGOUT("Write Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
-				paySize, addr, paySize / 512);
+	if((sdivSize = OP_DIV(paySize)) && 
+			usDisk_DiskWriteSectors(buffer+PRO_HDR, addr, sdivSize)){
+		SDEBUGOUT("REQUEST WRITE Error[addr:%d  SectorCount:%d]\r\n",
+						addr, sdivSize);
 		return 1;
 	}
-	addr += paySize / 512;
+	addr += sdivSize;
 	curSize = paySize-secSize;
+	SDEBUGOUT("REQUEST WRITE: PART INFO: addr:%d curSize:%dBytes %d/%dBytes\r\n", 
+							addr, curSize, secSize, paySize);	
 	while(curSize < header->len){
 		uint32_t secCount = 0;
+		uint8_t *ptr = NULL, *pbuffer = NULL;
 		if(usProtocol_RecvPackage((void **)&pbuffer, hSize, &paySize)){
 			SDEBUGOUT("usProtocol_RecvPackage Failed\r\n");
 			return 1;
 		}
-		secCount = paySize/512;
-		if(paySize %512){
-			SDEBUGOUT("usStorage_diskWRITE paySize	is %d[512]\r\n", paySize);
-			return 1;
+		/*add handle size*/		
+		hSize+= paySize;
+		ptr = pbuffer;
+		if(secSize){
+			SDEBUGOUT("REQUEST WIRTE: Handle InComplete Sector[%dBytes]\r\n",
+					secSize);
+			memcpy(sector+secSize, ptr, USDISK_SECTOR-secSize);
+			ptr += (USDISK_SECTOR-secSize);
+			/*Write to disk*/
+			if(usDisk_DiskWriteSectors(sector, addr, 1)){
+				SDEBUGOUT("REQUEST WRITE Last Sector Error[addr:%d SectorCount:%d]\r\n",
+							addr, secCount);
+				return 1;
+			}
+			/*add var*/
+			addr++;
+			curSize += USDISK_SECTOR;
+			paySize -= (USDISK_SECTOR-secSize);
+			secSize = 0;
+			SDEBUGOUT("REQUEST WIRTE: Handle InComplete Sector OK[Payload:%dBytes]\r\n",
+								paySize);			
+		}
+		
+		secCount = OP_DIV(paySize);
+		if(!secSize && (secSize = OP_MOD(paySize))){
+			SDEBUGOUT("REQUEST WRITE: InComplete Sector Detect [LAST]:%d/%dBytes\r\n", 
+									secSize, USDISK_SECTOR);
+			memcpy(sector, ptr+secCount*USDISK_SECTOR, secSize);
 		}
 		/*Write to disk*/
-		if(usDisk_DiskWriteSectors(pbuffer, addr, secCount)){
-			SDEBUGOUT("Write Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
-					paySize, addr, secCount);
+		if(secCount && usDisk_DiskWriteSectors(ptr, addr, secCount)){
+			SDEBUGOUT("REQUEST WRITE Error[addr:%d	SectorCount:%d]\r\n",
+							addr, sdivSize);
 			return 1;
 		}
 		/*Add var*/
 		addr += secCount;
-		curSize += paySize;
-		hSize+= paySize;
+		curSize += secCount*USDISK_SECTOR;
 	}
 
 	/*Write to Phone*/
@@ -278,7 +305,7 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 		return 1;
 	}
 
-	SDEBUGOUT("usStorage_diskWRITE Finish Successful\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
+	SDEBUGOUT("REQUEST WRITE FINISH:\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
 			header->wtag, header->ctrid, header->addr, header->len, header->wlun);
 	return 0;
 }
@@ -319,13 +346,18 @@ static int usStorage_Handle(void)
 		SDEBUGOUT("usProtocol_RecvPackage Failed\r\n");
 		return 1;
 	}
+	if(size < PRO_HDR){
+		SDEBUGOUT("usProtocol_RecvPackage Too Small [%d]Bytes\r\n", size);
+		return 1;
+	}
 	/*Must save the header, it will be erase*/
-	memcpy(&header, buffer, sizeof(header));
+	memcpy(&header, buffer, PRO_HDR);
 	SDEBUGOUT("usProtocol_RecvPackage [%d/%d]Bytes\r\n", 
 				header.len, size);
 	/*Handle Package*/
-	if(header.len+sizeof(header) == size){
-		SDEBUGOUT("usProtocol_RecvPackage Finish\r\n");
+	if(header.len+PRO_HDR == size){
+		SDEBUGOUT("RQUEST:\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
+				header.wtag, header.ctrid, header.addr, header.len, header.wlun);
 	}
 	
 	switch(header.ctrid){

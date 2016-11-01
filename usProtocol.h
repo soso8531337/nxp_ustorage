@@ -37,6 +37,8 @@ struct scsi_head{
 	int16_t wlun;
 	int16_t relag; /*Response Code*/
 };
+/*Protocol Header*/
+#define PRO_HDR				sizeof(struct scsi_head)
 
 #define SCSI_HEAD_SIZE			sizeof(struct scsi_head)
 #define SCSI_PHONE_MAGIC		 0xccddeeff

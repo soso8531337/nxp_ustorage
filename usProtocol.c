@@ -97,8 +97,6 @@ static struct accessory_t acc_default = {
 #define MPACKET_SIZE			(512)	/*Small packets size limited*/
 #define IOS_PROHEADER(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct version_header))
 
-/*Protocol Header*/
-#define PRO_HDR				sizeof(struct scsi_head)
 
 #ifndef IPPROTO_TCP
 #define IPPROTO_TCP 		6
