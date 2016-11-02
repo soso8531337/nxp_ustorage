@@ -95,7 +95,7 @@ static struct accessory_t acc_default = {
 #define IOS_DEFAULT_WIN			(8*1024)
 #define USB_MTU	IOS_DEFAULT_WIN
 #define MPACKET_SIZE			(512)	/*Small packets size limited*/
-#define IOS_PROHEADER(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct version_header))
+#define IOS_PROHEADER(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct tcphdr))
 
 
 #ifndef IPPROTO_TCP
@@ -507,6 +507,33 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 	return PROTOCOL_REOK;
 }
 
+static void usProtocol_iosControlInput(unsigned char *payload, uint32_t payload_length)
+{
+	if (payload_length > 0) {
+		switch (payload[0]) {
+		case 3:
+			if (payload_length > 1){
+				PRODEBUG("usProtocol_iosControlInput ERROR 3:");
+				usUsb_PrintStr((char*)payload+1, payload_length-1);
+			}else{
+				PRODEBUG("%s: Error occured, but empty error message", __func__);
+			}
+			break;
+		case 7:
+			if (payload_length > 1){
+				PRODEBUG("usProtocol_iosControlInput ERROR 7:");
+				usUsb_PrintStr((char*)payload+1, payload_length-1);
+			}
+			break;
+		default:			
+			PRODEBUG("usProtocol_iosControlInput ERROR %d:", payload[0]);
+			break;
+		}
+	} else {
+		PRODEBUG("%s: got a type 1 packet without payload", __func__);
+	}
+}
+
 static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer, 
 											uint32_t tsize, uint32_t *rsize)
 {
@@ -534,13 +561,20 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 			return PROTOCOL_REGEN;
 		}		
 		struct mux_header *mhdr =  (struct mux_header *)tbuffer;
-		if(ntohl(mhdr->protocol) != MUX_PROTO_TCP){
-			PRODEBUG("Connected Status Receive UN TCP Package[T:%u %u/%uBytes][IGNORE]\r\n", 
-										ntohl(mhdr->protocol), ntohl(mhdr->length), actual_length);
-			return PROTOCOL_REGEN;
+		if (uSdev->version >= 2) {
+			uSdev->rx_seq = ntohs(mhdr->rx_seq);
+		}		
+		if(ntohl(mhdr->protocol) == MUX_PROTO_CONTROL){			
+			payload = (unsigned char *)(mhdr+1);
+			payload_length = actual_length - mux_header_size;
+			usProtocol_iosControlInput(payload, payload_length);
+			return PROTOCOL_REINVAILD;
+		}else if(ntohl(mhdr->protocol) == MUX_PROTO_VERSION){
+			PRODEBUG("Receive ios Package MUX_PROTO_VERSION[Error]\r\n");
+			return PROTOCOL_REINVAILD;
 		}
 		if(actual_length < mux_header_size + sizeof(struct tcphdr)){
-			PRODEBUG("Receive ios Package is Too Small[%d/%d]\r\n", 
+			PRODEBUG("Receive ios Package is Too Small TCP Packet[%d/%d]\r\n", 
 										actual_length, mux_header_size);
 			return PROTOCOL_REGEN;
 		}
@@ -562,9 +596,7 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 		}
 		/*We need to decode tcp header*/			
 		th = (struct tcphdr *)((char*)mhdr+mux_header_size);
-		if (uSdev->version >= 2) {
-			uSdev->rx_seq = ntohs(mhdr->rx_seq);
-		}
+
 		uSdev->tcpinfo.rx_seq = ntohl(th->th_seq);
 		uSdev->tcpinfo.rx_ack = ntohl(th->th_ack);
 		uSdev->tcpinfo.rx_win = ntohs(th->th_win) << 8;
@@ -572,13 +604,14 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 		payload_length = uSdev->protlen - mux_header_size- sizeof(struct tcphdr);
 		
 		PRODEBUG("[IN]sport=%d dport=%d seq=%d ack=%d flags=0x%x window=%d[%d]len=%u\r\n",
-					uSdev->tcpinfo.sport, uSdev->tcpinfo.dport, 
+					ntohs(th->th_sport), ntohs(th->th_dport),
 					uSdev->tcpinfo.rx_seq, uSdev->tcpinfo.rx_ack, uSdev->tcpinfo.flags, 
 					uSdev->tcpinfo.rx_win, uSdev->tcpinfo.rx_win >> 8, uSdev->protlen);
-		if(th->th_flags & TH_RST) {
+		if(th->th_flags & TH_RST ||
+				th->th_flags != TH_ACK) {
 			/*Connection Reset*/
 			PRODEBUG("Connection Reset:\r\n");
-			usUsb_Print(payload, payload_length);
+			usUsb_PrintStr(payload, payload_length);
 			return PROTOCOL_REGEN;
 		}
 		uSdev->prohlen += actual_length;		
@@ -587,10 +620,10 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 				uSdev->protlen<= uSdev->max_payload){
 			*buffer = payload;
 			*rsize = payload_length;
-			/*Send ACK*/
+			/*Send ACK*/			
+			send_tcp_ack(uSdev);
 			/*update tx_ack*/
 			uSdev->tcpinfo.tx_ack += payload_length;
-			send_tcp_ack(uSdev);
 			PRODEBUG("We Receive it Finish one time..\r\n");
 			
 			return PROTOCOL_REOK;
@@ -613,8 +646,8 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 	uSdev->prohlen += trueSend;
 	if(uSdev->prohlen == uSdev->protlen){
 		PRODEBUG("We Need To Send ACK[Package Finish ack:%u]\r\n", uSdev->tcpinfo.tx_ack);
-		uSdev->tcpinfo.tx_ack += (uSdev->protlen-sizeof(struct tcphdr) - mux_header_size);
 		send_tcp_ack(uSdev);
+		uSdev->tcpinfo.tx_ack += (uSdev->protlen-sizeof(struct tcphdr) - mux_header_size);
 	}
 	PRODEBUG("Receive IOS Package Finish-->buffer:%p Recvsize:%d Total:%d Handle:%d\r\n",
 			uSdev->ib_buf, *rsize, uSdev->protlen, uSdev->prohlen);
@@ -1071,7 +1104,7 @@ uint8_t usProtocol_ConnectIOSPhone(mux_itunes *uSdev)
 			uSdev->tcpinfo.rx_win = ntohs(th->th_win) << 8;
 			PRODEBUG("[IN]sport=%d dport=%d seq=%d ack=%d flags=0x%x window=%d[%d] len=%u\r\n",
 						uSdev->tcpinfo.sport, uSdev->tcpinfo.dport, 
-						uSdev->tcpinfo.rx_seq, uSdev->tcpinfo.rx_ack, uSdev->tcpinfo.flags, 
+						uSdev->tcpinfo.rx_seq, uSdev->tcpinfo.rx_ack, th->th_flags, 
 						uSdev->tcpinfo.rx_win, uSdev->tcpinfo.rx_win >> 8, trueRecv);
 
 			
@@ -1125,6 +1158,7 @@ uint8_t usProtocol_ConnectPhone(void)
 					uSinfo.VendorID, uSinfo.ProductID);
 		return PROTOCOL_REINVAILD;
 	}
+	uSinfo.itunes.max_payload = uSinfo.itunes.ib_capacity - IOS_PROHEADER(uSinfo.itunes.version);
 	uSinfo.State = CONN_CONNECTED;
 	PRODEBUG("iPhone Device[v/p=%d:%d] Connected\r\n", 
 				uSinfo.VendorID, uSinfo.ProductID);

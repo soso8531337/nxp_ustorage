@@ -209,6 +209,7 @@ uint8_t usUsb_SetDeviceConfigDescriptor(usb_device *usbdev, uint8_t cfgindex);
 uint8_t usUsb_ClaimInterface(usb_device *usbdev, void *cPrivate);
 uint8_t usUsb_Init(usb_device *usbdev, void *os_priv);
 void usUsb_Print(uint8_t *buffer, int length);
+void usUsb_PrintStr(uint8_t *buffer, int length);
 uint8_t usUsb_DiskReadSectors(usb_device *usbdev, 
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize);
 uint8_t usUsb_DiskWriteSectors(usb_device *usbdev, 

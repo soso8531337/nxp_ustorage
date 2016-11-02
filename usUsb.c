@@ -829,5 +829,23 @@ void usUsb_Print(uint8_t *buffer, int length)
 	
 	printf("\r\n");
 }
+void usUsb_PrintStr(uint8_t *buffer, int length)
+{
+	int cur = 0;
+	
+	if(!buffer){
+		return;
+	}
 
+	for(; cur< length; cur++){
+		if(cur % 16 == 0){
+			printf("\r\n");
+		}
+		printf("%c", buffer[cur]);
+
+	}
+	
+	printf("\r\n");
+
+}
 
