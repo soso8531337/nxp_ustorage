@@ -498,6 +498,7 @@ int main(int argc, char **argv)
 		/*Connect Phone Device*/
 		if(usProtocol_ConnectPhone()){
 			/*Connect to Phone Failed*/
+			sleep(5);
 			continue;
 		}
 		usStorage_Handle();

@@ -1,0 +1,385 @@
+[PRO Mod]No Found Android Device in 1-3
+[PRO Mod]Found IOS device  v/p 05ac:12aa at 1-14
+[PRO Mod]Found new device with v/p 05ac:12aa at 1-14
+[PRO Mod]Setting configuration for device 1-14, from 1 to 4
+[PRO Mod]Found interface 1 with endpoints 04/85 for device 1-14
+[PRO Mod]Using wMaxPacketSize=512 for device 1-14
+[PRO Mod]Phone Change to CONNCETING State.
+[DISK Mod]Disk Blocks = 61497344 BlockSize = 512
+[PRO Mod]send_packet(0x0, 0x7fd85f70, (nil), 0)
+[USB Mod]LIBUSB Send Successful:20/20.
+[PRO Mod]sending packet ok(len 20) to device: successful
+[USB Mod]LIBUSB Receive 20/512.
+[PRO Mod]send_packet(0x2, (nil), 0x40c508, 1)
+[USB Mod]LIBUSB Send Successful:17/17.
+[PRO Mod]sending packet ok(len 17) to device: successful
+[PRO Mod]IOS Version Get Successful[ver.2]
+[PRO Mod]Connected to v2 device
+[PRO Mod][OUT]sport=2 dport=5555 seq=0 ack=0 flags=0x2 window=8192[32] len=0
+[PRO Mod][SmallDATA] Used STACK Memery Send Package[36]
+[PRO Mod]send_packet(0x6, 0x7fd8616c, (nil), 0)
+[USB Mod]LIBUSB Send Successful:36/36.
+[PRO Mod]sending packet ok(len 36) to device: successful
+[USB Mod]LIBUSB Receive 36/512.
+[PRO Mod]ACK Step1: Receive (36Bytes)
+[PRO Mod][IN]sport=2 dport=5555 seq=0 ack=1 flags=0x0 window=131072[512]
+[PRO Mod][OUT]sport=2 dport=5555 seq=1 ack=1 flags=0x10 window=8192[32] len=0
+[PRO Mod][SmallDATA] Used STACK Memery Send Package[36]
+[PRO Mod]send_packet(0x6, 0x7fd8616c, (nil), 0)
+[USB Mod]LIBUSB Send Successful:36/36.
+[PRO Mod]sending packet ok(len 36) to device: successful
+[PRO Mod]Successful Connect To iPhone(2->5555)
+[PRO Mod]iPhone Device[v/p=1452:4778] Connected
+[PRO Mod]First Receive ios Package
+[USB Mod]LIBUSB Receive 120/512.
+[PRO Mod]Connected Status Receive UN TCP Package[T:1 120/120Bytes][IGNORE]
+[Storage Mod]usProtocol_RecvPackage Failed
+[PRO Mod]Connect State[CONN_CONNECTED]
+[PRO Mod]First Receive ios Package
+[USB Mod]LIBUSB Receive 60/512.
+[PRO Mod][IN]sport=2 dport=5555 seq=1 ack=1 flags=0x0 window=131072[512]
+[PRO Mod][OUT]sport=2 dport=5555 seq=1 ack=25 flags=0x10 window=8192[32] len=0
+[PRO Mod][SmallDATA] Used STACK Memery Send Package[36]
+[PRO Mod]send_packet(0x6, 0x7fd862ec, (nil), 0)
+[USB Mod]LIBUSB Send Successful:36/36.
+[PRO Mod]sending packet ok(len 36) to device: successful
+[PRO Mod]We Receive it Finish one time..
+[Storage Mod]usProtocol_RecvPackage [1/24]Bytes
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[Storage Mod]AvaiableBuffer 0x0x41d77c[8172Bytes][Disk:1]
+[PRO Mod][OUT]sport=2 dport=5555 seq=1 ack=25 flags=0x10 window=8192[32] len=25
+[PRO Mod][SmallDATA] Used STACK Memery Send Package[61]
+[PRO Mod]send_packet(0x6, 0x7fd86314, 0x41d77c, 25)
+[USB Mod]LIBUSB Send Successful:61/61.
+[PRO Mod]sending packet ok(len 61) to device: successful
+[Storage Mod]usStorage_diskLUN Successful[DiskNumber 1]
+[PRO Mod]Connect State[CONN_CONNECTED]
+[PRO Mod]First Receive ios Package
+[USB Mod]LIBUSB Receive 60/512.
+[PRO Mod][IN]sport=2 dport=5555 seq=25 ack=26 flags=0x0 window=131072[512]
+[PRO Mod][OUT]sport=2 dport=5555 seq=26 ack=49 flags=0x10 window=8192[32] len=0
+[PRO Mod][SmallDATA] Used STACK Memery Send Package[36]
+[PRO Mod]send_packet(0x6, 0x7fd862ec, (nil), 0)
+[USB Mod]LIBUSB Send Successful:36/36.
+[PRO Mod]sending packet ok(len 36) to device: successful
+[PRO Mod]We Receive it Finish one time..
+[Storage Mod]usProtocol_RecvPackage [262144/24]Bytes
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[PRO Mod][OUT]sport=2 dport=5555 seq=26 ack=49 flags=0x10 window=8192[32] len=24
+[PRO Mod][SmallDATA] Used STACK Memery Send Package[60]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 24)
+[USB Mod]LIBUSB Send Successful:60/60.
+[PRO Mod]sending packet ok(len 60) to device: successful
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612736 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=50 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612736-->-1610612721) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612721 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=7730 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612721-->-1610612706) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612706 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=15410 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612706-->-1610612691) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612691 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=23090 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612691-->-1610612676) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612676 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=30770 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612676-->-1610612661) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612661 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=38450 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612661-->-1610612646) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612646 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=46130 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612646-->-1610612631) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612631 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=53810 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612631-->-1610612616) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612616 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=61490 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612616-->-1610612601) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612601 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=69170 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612601-->-1610612586) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612586 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=76850 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612586-->-1610612571) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612571 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=84530 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612571-->-1610612556) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612556 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=92210 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612556-->-1610612541) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612541 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=99890 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612541-->-1610612526) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612526 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=107570 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612526-->-1610612511) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612511 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=115250 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612511-->-1610612496) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612496 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=122930 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612496-->-1610612481) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612481 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=130610 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612481-->-1610612466) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612466 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=138290 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612466-->-1610612451) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612451 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=145970 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612451-->-1610612436) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612436 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=153650 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612436-->-1610612421) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612421 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=161330 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612421-->-1610612406) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612406 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=169010 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612406-->-1610612391) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612391 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=176690 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612391-->-1610612376) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612376 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=184370 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612376-->-1610612361) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612361 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=192050 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612361-->-1610612346) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612346 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=199730 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612346-->-1610612331) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612331 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=207410 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612331-->-1610612316) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612316 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=215090 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612316-->-1610612301) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612301 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=222770 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612301-->-1610612286) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612286 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=230450 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612286-->-1610612271) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612271 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=238130 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612271-->-1610612256) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612256 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=245810 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612256-->-1610612241) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612241 numSec:15].
+[PRO Mod][OUT]sport=2 dport=5555 seq=253490 ack=49 flags=0x10 window=8192[32] len=7680
+[PRO Mod][BigDATA] Used Global Memery Send Package[7716]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 7680)
+[USB Mod]LIBUSB Send Successful:7716/7716.
+[PRO Mod]sending packet ok(len 7716) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:7680Bytes][DS:-1610612736(-1610612241-->-1610612226) [TS:262144Bytes]
+[PRO Mod]Avaiable Buffer:0x41d77c Size:8172
+[DISK Mod]DiskReadSectors Successful[DiskNum:1 secStart:-1610612226 numSec:2].
+[PRO Mod][OUT]sport=2 dport=5555 seq=261170 ack=49 flags=0x10 window=8192[32] len=1024
+[PRO Mod][BigDATA] Used Global Memery Send Package[1060]
+[PRO Mod]send_packet(0x6, 0x7fd862fc, 0x41d77c, 1024)
+[USB Mod]LIBUSB Send Successful:1060/1060.
+[PRO Mod]sending packet ok(len 1060) to device: successful
+[Storage Mod]READ INFO:0x0x41d77c[SZ:1024Bytes][DS:-1610612736(-1610612226-->-1610612224) [TS:262144Bytes]
+[Storage Mod]REQUEST READ OK:
+wtag=2
+ctrid=1
+addr=-1610612736
+len=262144
+wlun=0
+[PRO Mod]Connect State[CONN_CONNECTED]
+[PRO Mod]First Receive ios Package
+[USB Mod]LIBUSB Receive 36/512.
+[PRO Mod][IN]sport=2 dport=5555 seq=49 ack=99890 flags=0x0 window=123392[482]
+[PRO Mod][OUT]sport=2 dport=5555 seq=262194 ack=49 flags=0x10 window=8192[32] len=0
+[PRO Mod][SmallDATA] Used STACK Memery Send Package[36]
+[PRO Mod]send_packet(0x6, 0x7fd862ec, (nil), 0)
+[USB Mod]LIBUSB Send Successful:36/36.
+[PRO Mod]sending packet ok(len 36) to device: successful
+[PRO Mod]We Receive it Finish one time..
+[Storage Mod]usProtocol_RecvPackage Too Small [0]Bytes
+[PRO Mod]Connect State[CONN_CONNECTED]
+[PRO Mod]First Receive ios Package
+[USB Mod]LIBUSB Receive 36/512.
+[PRO Mod][IN]sport=2 dport=5555 seq=49 ack=192050 flags=0x0 window=123392[482]
+[PRO Mod][OUT]sport=2 dport=5555 seq=262194 ack=49 flags=0x10 window=8192[32] len=0
+[PRO Mod][SmallDATA] Used STACK Memery Send Package[36]
+[PRO Mod]send_packet(0x6, 0x7fd862ec, (nil), 0)
+[USB Mod]LIBUSB Send Successful:36/36.
+[PRO Mod]sending packet ok(len 36) to device: successful
+[PRO Mod]We Receive it Finish one time..
+[Storage Mod]usProtocol_RecvPackage Too Small [0]Bytes
+[PRO Mod]Connect State[CONN_CONNECTED]
+[PRO Mod]First Receive ios Package
+
+
+
