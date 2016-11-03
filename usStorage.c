@@ -263,8 +263,16 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 		hSize+= paySize;
 		ptr = pbuffer;
 		if(secSize){
-			SDEBUGOUT("REQUEST WIRTE: Handle InComplete Sector[%dBytes]\r\n",
-					secSize);
+			SDEBUGOUT("REQUEST WIRTE: Handle InComplete Sector[%dBytes Payload:%dBytes]\r\n",
+					secSize, paySize);
+			if(paySize < USDISK_SECTOR-secSize){
+				memcpy(sector+secSize, ptr, paySize);
+				curSize += paySize;
+				secSize += paySize;
+				SDEBUGOUT("REQUEST WIRTE: PayLoad Not Enough Fill Sector[update to %dBytes CurSize:%dByte Payload:%dBytes]\r\n",
+						secSize, curSize, paySize);
+				continue;
+			}
 			memcpy(sector+secSize, ptr, USDISK_SECTOR-secSize);
 			ptr += (USDISK_SECTOR-secSize);
 			/*Write to disk*/
@@ -307,6 +315,44 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 
 	SDEBUGOUT("REQUEST WRITE FINISH:\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
 			header->wtag, header->ctrid, header->addr, header->len, header->wlun);
+	return 0;
+}
+
+static int usStorage_diskINQUIRY(struct scsi_head *header)
+{
+	uint8_t *buffer = NULL;
+	uint32_t size = 0, total = 0;
+	struct scsi_inquiry_info dinfo;
+	
+	if(!header){
+		SDEBUGOUT("usStorage_diskINQUIRY Parameter Failed\r\n");
+		return 1;
+	}
+	if(header->len != sizeof(struct scsi_inquiry_info)){
+		SDEBUGOUT("usStorage_diskINQUIRY Parameter Error:[%d/%d]\r\n",
+					header->len, sizeof(struct scsi_inquiry_info));
+		return 1;
+	}
+	if(usDisk_DiskInquiry(&dinfo)){
+		SDEBUGOUT("usDisk_DiskInquiry  Error\r\n");
+		return 1;
+	}
+	if(usProtocol_GetAvaiableBuffer((void **)&buffer, &size)){
+		SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
+		return 1;
+	}
+	memcpy(buffer, header, PRO_HDR);
+	memcpy(buffer+PRO_HDR, &dinfo,  sizeof(struct scsi_inquiry_info));
+	total = PRO_HDR+sizeof(struct scsi_inquiry_info);
+	
+	if(usProtocol_SendPackage(buffer, total)){
+		SDEBUGOUT("usStorage_diskINQUIRY Failed\r\n");
+		return 1;
+	}
+	
+	SDEBUGOUT("usStorage_diskINQUIRY Successful\r\nDisk[%d] \r\nSize:%lld\r\nVendor:%s\r\nProduct:%s\r\nVersion:%s\r\nSerical:%s\r\n", 
+			header->wlun, dinfo.size, dinfo.vendor, dinfo.product, dinfo.version, dinfo.serial);
+	
 	return 0;
 }
 
@@ -355,17 +401,18 @@ static int usStorage_Handle(void)
 	SDEBUGOUT("usProtocol_RecvPackage [%d/%d]Bytes\r\n", 
 				header.len, size);
 	/*Handle Package*/
-	if(header.len+PRO_HDR == size){
-		SDEBUGOUT("RQUEST:\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
-				header.wtag, header.ctrid, header.addr, header.len, header.wlun);
-	}
-	
+	SDEBUGOUT("RQUEST:\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
+			header.wtag, header.ctrid, header.addr, header.len, header.wlun);
+
 	switch(header.ctrid){
 		case SCSI_READ:
 			usStorage_diskREAD(&header);
 			break;
 		case SCSI_WRITE:		
 			usStorage_diskWRITE(buffer, size, &header);
+			break;
+		case SCSI_INQUIRY:
+			usStorage_diskINQUIRY(&header);
 			break;
 		case SCSI_GET_LUN:
 			usStorage_diskLUN(&header);

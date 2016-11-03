@@ -11,6 +11,7 @@
 #include "usDisk.h"
 #include "usUsb.h"
 #include "usSys.h"
+#include "protocol.h"
 #if defined(NXP_CHIP_18XX)
 #include "MassStorageHost.h"
 #elif defined(LINUX)
@@ -54,6 +55,9 @@
 #define DSKDEBUG(...)
 #endif
 
+#define STOR_DFT_PRO		"U-Storage"
+#define STOR_DFT_VENDOR		"i4season"
+
 enum{
 	DISK_REOK=0,
 	DISK_REPARA,
@@ -65,6 +69,7 @@ typedef struct {
 	uint8_t disknum;
 	uint32_t Blocks; /**< Number of blocks in the addressed LUN of the device. */
 	uint32_t BlockSize; /**< Number of bytes in each block in the addressed LUN. */
+	int64_t disk_cap;
 	usb_device diskdev;
 }usDisk_info;
 
@@ -198,7 +203,9 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 		}		
 		DSKDEBUG("Disk Capacity = %lld Bytes", disk_cap);
 		close(dev_fd);
-		uDinfo.BlockSize = 512;		
+		uDinfo.disk_cap = disk_cap;
+		uDinfo.BlockSize = 512;
+		uDinfo.Blocks = disk_cap/uDinfo.BlockSize;
 		uDinfo.disknum=1;
 		return DISK_REOK;
 	}
@@ -214,8 +221,11 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 	/* Calculate disk capacity */
 	uDinfo.Blocks= (lastblock+1);
 	uDinfo.BlockSize= blocksize;	
+	uDinfo.disk_cap  = (lastblock+1);
+	uDinfo.disk_cap *= blocksize;
 	uDinfo.disknum=1;
-	DSKDEBUG("Disk Blocks = %u BlockSize = %u\n", uDinfo.Blocks, uDinfo.BlockSize);
+	DSKDEBUG("Disk Blocks = %u BlockSize = %u Disk Capacity=%lld\n", 
+			uDinfo.Blocks, uDinfo.BlockSize, uDinfo.disk_cap);
 	close(dev_fd);
 
 	return DISK_REOK;
@@ -267,4 +277,21 @@ uint8_t usDisk_DiskWriteSectors(void *buff, uint32_t secStart, uint32_t numSec)
 uint8_t usDisk_DiskNum(void)
 {
 	return uDinfo.disknum;
+}
+
+uint8_t usDisk_DiskInquiry(struct scsi_inquiry_info *inquiry)
+{
+	if(!inquiry){
+		DSKDEBUG("usDisk_DiskInquiry Parameter Error\r\n");
+		return DISK_REPARA;
+	}
+	memset(inquiry, 0, sizeof(struct scsi_inquiry_info));
+	/*Init Other Info*/
+	inquiry->size = uDinfo.disk_cap;
+	strcpy(inquiry->product, STOR_DFT_PRO);
+	strcpy(inquiry->vendor, STOR_DFT_VENDOR);
+	strcpy(inquiry->serial, "1234567890abcdef");
+	strcpy(inquiry->version, "1.0");
+
+	return DISK_REOK;	
 }

@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdint.h>
+#include "protocol.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,6 +24,7 @@ uint8_t usDisk_DeviceDisConnect(void);
 uint8_t usDisk_DiskReadSectors(void *buff, uint32_t secStart, uint32_t numSec);
 uint8_t usDisk_DiskWriteSectors(void *buff, uint32_t secStart, uint32_t numSec);
 uint8_t usDisk_DiskNum(void);
+uint8_t usDisk_DiskInquiry(struct scsi_inquiry_info *inquiry);
 
 #ifdef __cplusplus
 }

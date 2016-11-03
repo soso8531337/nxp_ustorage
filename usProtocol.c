@@ -10,6 +10,7 @@
 #include "usProtocol.h"
 #include "usUsb.h"
 #include "usSys.h"
+#include "protocol.h"
 #if defined(NXP_CHIP_18XX)
 #include "MassStorageHost.h"
 #elif defined(LINUX)
@@ -514,7 +515,7 @@ static void usProtocol_iosControlInput(unsigned char *payload, uint32_t payload_
 		case 3:
 			if (payload_length > 1){
 				PRODEBUG("usProtocol_iosControlInput ERROR 3:");
-				usUsb_PrintStr((char*)payload+1, payload_length-1);
+				usUsb_PrintStr((uint8_t*)(payload+1), payload_length-1);
 			}else{
 				PRODEBUG("%s: Error occured, but empty error message", __func__);
 			}
@@ -522,11 +523,12 @@ static void usProtocol_iosControlInput(unsigned char *payload, uint32_t payload_
 		case 7:
 			if (payload_length > 1){
 				PRODEBUG("usProtocol_iosControlInput ERROR 7:");
-				usUsb_PrintStr((char*)payload+1, payload_length-1);
+				usUsb_PrintStr((uint8_t*)(payload+1), payload_length-1);
 			}
 			break;
 		default:			
-			PRODEBUG("usProtocol_iosControlInput ERROR %d:", payload[0]);
+			PRODEBUG("usProtocol_iosControlInput ERROR %d:", payload[0]);			
+			usUsb_PrintStr((uint8_t*)(payload+1), payload_length-1);
 			break;
 		}
 	} else {
@@ -547,7 +549,8 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 	}
 	/*We need to read ios protocol header*/
 	*rsize = 0;
-	if(tsize == 0){
+	if(tsize == 0 || 
+			(!uSdev->protlen && !uSdev->prohlen)){
 		uint32_t actual_length = 0;
 		struct tcphdr *th;
 		uint8_t *payload;
@@ -605,7 +608,7 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 		
 		PRODEBUG("[IN]sport=%d dport=%d seq=%d ack=%d flags=0x%x window=%d[%d]len=%u\r\n",
 					ntohs(th->th_sport), ntohs(th->th_dport),
-					uSdev->tcpinfo.rx_seq, uSdev->tcpinfo.rx_ack, uSdev->tcpinfo.flags, 
+					uSdev->tcpinfo.rx_seq, uSdev->tcpinfo.rx_ack, th->th_flags, 
 					uSdev->tcpinfo.rx_win, uSdev->tcpinfo.rx_win >> 8, uSdev->protlen);
 		if(th->th_flags & TH_RST ||
 				th->th_flags != TH_ACK) {
@@ -625,7 +628,8 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 			/*update tx_ack*/
 			uSdev->tcpinfo.tx_ack += payload_length;
 			PRODEBUG("We Receive it Finish one time..\r\n");
-			
+			/*reset protlen and prohlen*/
+			uSdev->protlen = uSdev->prohlen = 0;
 			return PROTOCOL_REOK;
 		}
 		*rsize = uSdev->prohlen - mux_header_size- sizeof(struct tcphdr);
@@ -647,7 +651,9 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 	if(uSdev->prohlen == uSdev->protlen){
 		PRODEBUG("We Need To Send ACK[Package Finish ack:%u]\r\n", uSdev->tcpinfo.tx_ack);
 		send_tcp_ack(uSdev);
-		uSdev->tcpinfo.tx_ack += (uSdev->protlen-sizeof(struct tcphdr) - mux_header_size);
+		uSdev->tcpinfo.tx_ack += (uSdev->protlen-sizeof(struct tcphdr) - mux_header_size);		
+		/*reset protlen and prohlen*/
+		uSdev->protlen = uSdev->prohlen = 0;
 	}
 	PRODEBUG("Receive IOS Package Finish-->buffer:%p Recvsize:%d Total:%d Handle:%d\r\n",
 			uSdev->ib_buf, *rsize, uSdev->protlen, uSdev->prohlen);
@@ -1103,7 +1109,7 @@ uint8_t usProtocol_ConnectIOSPhone(mux_itunes *uSdev)
 			uSdev->tcpinfo.rx_ack = ntohl(th->th_ack);
 			uSdev->tcpinfo.rx_win = ntohs(th->th_win) << 8;
 			PRODEBUG("[IN]sport=%d dport=%d seq=%d ack=%d flags=0x%x window=%d[%d] len=%u\r\n",
-						uSdev->tcpinfo.sport, uSdev->tcpinfo.dport, 
+						ntohs(th->th_sport), ntohs(th->th_dport), 
 						uSdev->tcpinfo.rx_seq, uSdev->tcpinfo.rx_ack, th->th_flags, 
 						uSdev->tcpinfo.rx_win, uSdev->tcpinfo.rx_win >> 8, trueRecv);
 
