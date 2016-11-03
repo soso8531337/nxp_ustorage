@@ -206,7 +206,7 @@ static int usStorage_diskREAD(struct scsi_head *header)
 					rsize, addr, secCount);
 			return 1;
 		}
-		SDEBUGOUT("READ INFO:0x%p[SZ:%dBytes][DS:%d(%d-->%d) [TS:%dBytes]\r\n", 
+		SDEBUGOUT("READ INFO:%p[SZ:%dBytes][DS:%d(%d-->%d) [TS:%dBytes]\r\n", 
 						buffer, avsize, header->addr, addr, addr +secCount, header->len);
 		addr += secCount;
 		rsize += avsize;

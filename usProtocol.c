@@ -539,7 +539,8 @@ static void usProtocol_iosControlInput(unsigned char *payload, uint32_t payload_
 static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer, 
 											uint32_t tsize, uint32_t *rsize)
 {
-	uint8_t *tbuffer = uSdev->ib_buf;
+	uint8_t *tbuffer = uSdev->ib_buf;	
+	uint8_t *payload = NULL;
 	uint32_t sizeSend = 0;	
 	uint32_t trueSend = 0;
 	int mux_header_size = ((uSdev->version < 2) ? 8 : sizeof(struct mux_header));
@@ -553,7 +554,6 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 			(!uSdev->protlen && !uSdev->prohlen)){
 		uint32_t actual_length = 0;
 		struct tcphdr *th;
-		uint8_t *payload;
 		uint32_t payload_length, read_length;
 		
 		PRODEBUG("First Receive ios Package\r\n");
@@ -632,7 +632,7 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 			uSdev->protlen = uSdev->prohlen = 0;
 			return PROTOCOL_REOK;
 		}
-		*rsize = uSdev->prohlen - mux_header_size- sizeof(struct tcphdr);
+		*rsize = payload_length;
 	}
 
 	/*we just receive 512*number */
@@ -645,7 +645,13 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 		PRODEBUG("Receive ios Package Header Error\r\n");
 		return PROTOCOL_REGEN;
 	}
-	*buffer = tbuffer;
+	if(payload != NULL){
+		*buffer = payload;		
+		PRODEBUG("We Need To Used payload Point[%p]-->[%p]\r\n", payload, tbuffer);
+	}else{
+		*buffer = tbuffer;
+		PRODEBUG("We Need To Used tbuffer Point[%p]\r\n",tbuffer);		
+	}
 	*rsize += trueSend;
 	uSdev->prohlen += trueSend;
 	if(uSdev->prohlen == uSdev->protlen){
