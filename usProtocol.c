@@ -97,7 +97,7 @@ static struct accessory_t acc_default = {
 #define USB_MTU	IOS_DEFAULT_WIN
 #define MPACKET_SIZE			(512)	/*Small packets size limited*/
 #define IOS_PROHEADER(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct tcphdr))
-
+#define IOS_WIN_SIZE				131072 /*Must Not change this value*/
 
 #ifndef IPPROTO_TCP
 #define IPPROTO_TCP 		6
@@ -1025,7 +1025,7 @@ uint8_t usProtocol_GetIOSVersion(mux_itunes *uSdev)
 	memset(&(uSdev->tcpinfo), 0, sizeof(uSdev->tcpinfo));
 	uSdev->tcpinfo.sport = find_sport();
 	uSdev->tcpinfo.dport= IOS_DEFAULT_PORT;
-	uSdev->tcpinfo.tx_win = IOS_DEFAULT_WIN;	
+	uSdev->tcpinfo.tx_win = IOS_WIN_SIZE;	
 	/*Begin to conncet to iPhone*/
 	/*1.request PROTOCOL_VERSION*/
 	rvh.major = htonl(2);
