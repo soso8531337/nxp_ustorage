@@ -458,7 +458,7 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 			PRODEBUG("AOA Package Header Error:0x%x\r\n", hdr->head);
 			return PROTOCOL_REGEN;
 		}
-		if(hdr->ctrid == SCSI_WRITE){
+		if(hdr->ctrid & SCSI_WFLAG){
 			uSdev->protlen = hdr->len+PRO_HDR;
 		}else{
 			uSdev->protlen = PRO_HDR;
@@ -469,7 +469,7 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 		if(uSdev->protlen<= uSdev->max_payload){
 			PRODEBUG("We Can Receive it Finish one time[total=%d header.len=%d]..\r\n",
 					uSdev->protlen, hdr->len);
-			if(hdr->ctrid == SCSI_WRITE &&hdr->len && 
+			if(hdr->ctrid & SCSI_WFLAG &&hdr->len && 
 					usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, 
 								uSdev->protlen-uSdev->prohlen, &actual_length)){
 				PRODEBUG("Receive aoa Package Header Error\r\n");
