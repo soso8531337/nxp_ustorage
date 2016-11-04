@@ -42,8 +42,6 @@ enum{
 	EUPDATE=6
 };
 
-#define SCSI_WFLAG  1 << 7
-
 enum {
   SCSI_TEST = 0,
   SCSI_READ  = 1,//28
