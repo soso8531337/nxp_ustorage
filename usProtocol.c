@@ -469,15 +469,25 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 		if(uSdev->protlen<= uSdev->max_payload){
 			PRODEBUG("We Can Receive it Finish one time[total=%d header.len=%d]..\r\n",
 					uSdev->protlen, hdr->len);
-			if(hdr->ctrid & SCSI_WFLAG &&hdr->len && 
-					usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, 
-								uSdev->protlen-uSdev->prohlen, &actual_length)){
-				PRODEBUG("Receive aoa Package Header Error\r\n");
-				return PROTOCOL_REGEN;
+			if((hdr->ctrid & SCSI_WFLAG) &&hdr->len){
+				while(uSdev->protlen-uSdev->prohlen){
+					if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, 
+							uSdev->protlen-uSdev->prohlen, &actual_length)){
+						PRODEBUG("Receive aoa Package Header Error\r\n");
+						return PROTOCOL_REGEN;
+					}
+					uSdev->prohlen += actual_length;					
+					tbuffer += actual_length;
+					PRODEBUG("Part Receive aoa Package[Total:%dBytes Handle:%dByte Now:%dBytes]\r\n",
+								uSdev->protlen, uSdev->prohlen, actual_length);
+				}
+			}else{				
+				PRODEBUG("Receive NON Write aoa Package[Total:%dBytes Handle:%dByte Now:%dBytes]\r\n",
+							uSdev->protlen, uSdev->prohlen, actual_length);
+				uSdev->prohlen = uSdev->protlen;
 			}
 			*buffer = uSdev->ib_buf;
 			*rsize = uSdev->protlen;
-			uSdev->prohlen = uSdev->protlen;
 			PRODEBUG("Receive aoa Package[once]-->buffer:%p Recvsize:%d Total:%d Handle:%d\r\n",
 				uSdev->ib_buf, *rsize, uSdev->protlen, uSdev->prohlen);					
 			return PROTOCOL_REOK;
