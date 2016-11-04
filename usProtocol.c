@@ -632,7 +632,7 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 			uSdev->protlen = uSdev->prohlen = 0;
 			return PROTOCOL_REOK;
 		}
-		*rsize = payload_length;
+		*rsize = uSdev->prohlen - mux_header_size- sizeof(struct tcphdr);
 	}
 
 	/*we just receive 512*number */
