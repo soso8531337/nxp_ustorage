@@ -96,7 +96,15 @@ static struct accessory_t acc_default = {
 #define MPACKET_SIZE			(512)	/*Small packets size limited*/
 #define IOS_PROHEADER(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct tcphdr))
 #define IOS_WIN_SIZE				131072 /*Must Not change this value*/
-#define USB_MTU			(8*1024)
+#define USB_MTU				(8*1024)
+// max transmission packet size
+// libusb fragments these too, but doesn't send ZLPs so we're safe
+// but we need to send a ZLP ourselves at the end (see usb-linux.c)
+// we're using 3 * 16384 to optimize for the fragmentation
+// this results in three URBs per full transfer, 32 USB packets each
+// if there are ZLP issues this should make them show up easily too
+#define USB_MTU_IOS			(3 * 16384)
+
 #ifndef IPPROTO_TCP
 #define IPPROTO_TCP 		6
 #endif
@@ -1178,7 +1186,11 @@ uint8_t usProtocol_ConnectPhone(void)
 					uSinfo.VendorID, uSinfo.ProductID);
 		return PROTOCOL_REINVAILD;
 	}
-	uSinfo.itunes.max_payload = uSinfo.itunes.ib_capacity - IOS_PROHEADER(uSinfo.itunes.version);
+	if(uSinfo.itunes.ib_capacity >USB_MTU_IOS){
+		uSinfo.itunes.max_payload = USB_MTU_IOS -  sizeof(struct mux_header) - sizeof(struct tcphdr);
+	}else{
+		uSinfo.itunes.max_payload = uSinfo.itunes.ib_capacity -  sizeof(struct mux_header) - sizeof(struct tcphdr);
+	}
 	uSinfo.State = CONN_CONNECTED;
 	PRODEBUG("iPhone Device[v/p=%d:%d] Connected\r\n", 
 				uSinfo.VendorID, uSinfo.ProductID);
