@@ -93,8 +93,6 @@ static struct accessory_t acc_default = {
 
 /*IOS Default PORT*/
 #define IOS_DEFAULT_PORT			5555
-#define IOS_DEFAULT_WIN			(8*1024)
-#define USB_MTU	IOS_DEFAULT_WIN
 #define MPACKET_SIZE			(512)	/*Small packets size limited*/
 #define IOS_PROHEADER(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct tcphdr))
 #define IOS_WIN_SIZE				131072 /*Must Not change this value*/
