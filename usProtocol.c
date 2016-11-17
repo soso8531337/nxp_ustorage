@@ -510,11 +510,12 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 	Recvsize = min(Recvsize, (uSdev->protlen-uSdev->prohlen));
 	PRODEBUG("Prepare Receive aoa Package %d[%d/%d]\r\n", 
 					Recvsize, uSdev->protlen, uSdev->prohlen);
-	if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, 
+	if(usUsb_BlukPacketReceiveStream(&(uSdev->usbdev), tbuffer, 
 									Recvsize, &trueRecv)){
 		PRODEBUG("Receive aoa Package Header Error\r\n");
 		return PROTOCOL_REGEN;
 	}
+
 	*buffer = uSdev->ib_buf;
 	*rsize += trueRecv;
 	uSdev->prohlen += trueRecv;
@@ -656,7 +657,7 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 	sizeSend = sizeSend-sizeSend%512;
 	sizeSend = min(sizeSend, (uSdev->protlen-uSdev->prohlen));
 	PRODEBUG("Prepare Receive ios Package %d\r\n", sizeSend);
-	if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, 
+	if(usUsb_BlukPacketReceiveStream(&(uSdev->usbdev), tbuffer, 
 									sizeSend, &trueSend)){
 		PRODEBUG("Receive ios Package Header Error\r\n");
 		return PROTOCOL_REGEN;
