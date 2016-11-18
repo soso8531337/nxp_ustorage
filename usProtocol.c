@@ -508,6 +508,7 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 	Recvsize = uSdev->max_payload-(tbuffer-uSdev->ib_buf);
 	Recvsize = Recvsize-Recvsize%512;
 	Recvsize = min(Recvsize, (uSdev->protlen-uSdev->prohlen));
+	
 	PRODEBUG("Prepare Receive aoa Package %d[%d/%d]\r\n", 
 					Recvsize, uSdev->protlen, uSdev->prohlen);
 	if(usUsb_BlukPacketReceiveStream(&(uSdev->usbdev), tbuffer, 

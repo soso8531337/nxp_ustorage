@@ -71,6 +71,61 @@ static uint8_t NXP_BlukPacketReceiveStream(usb_device *usbdev, uint8_t *buffer,
 													uint32_t length, uint32_t *actual_length)
 {
 	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
+	uint8_t *DataStream = (uint8_t *) buffer;
+	uint8_t corenum;
+	uint16_t Length = length;
+	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
+
+	if(!usbdev || !buffer || !actual_length){
+		return USB_REPARA;
+	}
+	
+	Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
+			MSInterfaceInfo->Config.DataINPipeNumber);	
+	corenum = MSInterfaceInfo->Config.PortNumber;
+	while (Length) {
+		if (Pipe_IsReadWriteAllowed(corenum)) {
+			*DataStream = Pipe_Read_8(corenum);
+			DataStream++;
+			Length--;
+		}
+		else {
+			Pipe_ClearIN(corenum);
+			HcdDataTransfer(PipeInfo[corenum][pipeselected[corenum]].PipeHandle,
+							PipeInfo[corenum][pipeselected[corenum]].Buffer,
+							MIN(Length, PipeInfo[corenum][pipeselected[corenum]].BufferSize),
+							&PipeInfo[corenum][pipeselected[corenum]].ByteTransfered);
+			ErrorCode = Pipe_WaitUntilReady(corenum);
+			if (ErrorCode) {				
+				USBDEBUG("USB Stream Receive Error[%d-->Length=%d]\r\n", ErrorCode, Length);
+				return ErrorCode;
+			}
+			if(Pipe_BytesInPipe(corenum) % 512){
+				/*If do not handle the incomplete package, pipe will be broken I do not know the reason*/
+				USBDEBUG("USB Stream HcdDataTransfer Receive Not a Complete Package[%d]\r\n", Pipe_BytesInPipe(corenum));
+				while (Pipe_IsReadWriteAllowed(corenum)) {
+					*DataStream = Pipe_Read_8(corenum);
+					DataStream++;
+					Length--;
+				}
+				*actual_length = length-Length;
+				USBDEBUG("USB Stream Receive Not Complete [%d/%dBytes]\r\n", *actual_length, length);
+				return USB_REOK;
+			}
+			//USBDEBUG("USB Stream HcdDataTransfer Receive[%d]\r\n", Pipe_BytesInPipe(corenum));
+		}
+	}
+	
+	*actual_length = length;
+	USBDEBUG("USB Stream Receive [%d/%dBytes]\r\n", *actual_length, length);
+
+	return USB_REOK;
+}	
+
+static uint8_t NXP_BlukPacketReceiveStream2(usb_device *usbdev, uint8_t *buffer, 
+													uint32_t length, uint32_t *actual_length)
+{
+	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
 	uint8_t ErrorCallback = 0;
 	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
 
