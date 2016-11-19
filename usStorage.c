@@ -35,7 +35,6 @@
 #include "usProtocol.h"
 #include "usSys.h"
 #if defined(NXP_CHIP_18XX)
-#include "MassStorageHost.h"
 #include "fsusb_cfg.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -350,8 +349,8 @@ static int usStorage_diskINQUIRY(struct scsi_head *header)
 		return 1;
 	}
 	
-	SDEBUGOUT("usStorage_diskINQUIRY Successful\r\nDisk[%d] \r\nSize:%lld\r\nVendor:%s\r\nProduct:%s\r\nVersion:%s\r\nSerical:%s\r\n", 
-			header->wlun, dinfo.size, dinfo.vendor, dinfo.product, dinfo.version, dinfo.serial);
+	SDEBUGOUT("usStorage_diskINQUIRY Successful\r\nDisk INQUIRY\r\nSize:%lld\r\nVendor:%s\r\nProduct:%s\r\nVersion:%s\r\nSerical:%s\r\n", 
+				dinfo.size, dinfo.vendor, dinfo.product, dinfo.version, dinfo.serial);
 	
 	return 0;
 }

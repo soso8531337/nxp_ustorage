@@ -149,9 +149,10 @@ uint8_t usDisk_DeviceDetect(void *os_priv)
 		DSKDEBUG("ReadDeviceCapacity Failed\r\n");
 		return DISK_REINVAILD;
 	}
-	DSKDEBUG("Mass Storage Device Enumerated.\r\n");
 	uDinfo.disknum=1;
-	
+	uDinfo.disk_cap = uDinfo.BlockSize *uDinfo.Blocks;
+	DSKDEBUG("Mass Storage Device Enumerated. [Num:%d Blocks:%d BlockSzie:%d Cap:%lld]\r\n",
+			uDinfo.disknum, uDinfo.Blocks, uDinfo.BlockSize, uDinfo.disk_cap);
 	return DISK_REOK;
 }
 
