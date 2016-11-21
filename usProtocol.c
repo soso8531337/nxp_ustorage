@@ -409,11 +409,26 @@ static int send_tcp_ack(mux_itunes *conn)
 
 static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32_t size)
 {	
+	void *tbuffer = buffer;
+	uint32_t tsize = size;
+	
 	if(!buffer || !size){
 		return PROTOCOL_REPARA;
 	}
+#define IOS_MAGIC_LIMIT		4096	
+#define IOS_MAGIC_SIZE			512
 	/*Send ios package*/
-	if(send_tcp(uSdev, TH_ACK, buffer, size) < 0){
+	if(size % IOS_MAGIC_LIMIT == 0){
+		PRODEBUG("Need To Divide Package Because Package size is %d\r\n", size);
+		if(send_tcp(uSdev, TH_ACK, tbuffer, size-IOS_MAGIC_SIZE) < 0){
+			PRODEBUG("usProtocol_iosSendPackage Error:%p Size:%d\r\n", buffer, size);
+			return PROTOCOL_REGEN;
+		}		
+		uSdev->tcpinfo.tx_seq += (size-IOS_MAGIC_SIZE);
+		tbuffer += (size-IOS_MAGIC_SIZE);
+		size = IOS_MAGIC_SIZE;
+	}
+	if(send_tcp(uSdev, TH_ACK, tbuffer, size) < 0){
 		PRODEBUG("usProtocol_iosSendPackage Error:%p Size:%d\r\n", buffer, size);
 		return PROTOCOL_REGEN;
 	}
@@ -469,7 +484,14 @@ static uint8_t usProtocol_aoaRecvPackage(mux_itunes *uSdev, void **buffer,
 		}else{
 			uSdev->protlen = PRO_HDR;
 		}
-		uSdev->prohlen = actual_length;		
+		if(actual_length >= uSdev->protlen){
+			PRODEBUG("Fix AOA Receive Packet[%d--->%d]\r\n", 
+										actual_length, uSdev->protlen);			
+			uSdev->prohlen = uSdev->protlen;
+		}else{
+			uSdev->prohlen= actual_length;
+		}		
+		//uSdev->prohlen = actual_length;		
 		tbuffer += actual_length;
 
 		if(uSdev->protlen<= uSdev->max_payload){
@@ -601,8 +623,13 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 		}
 		
 		uSdev->protlen  = ntohl(mhdr->length);
-		uSdev->prohlen= actual_length;
-
+		if(actual_length >= uSdev->protlen){
+			PRODEBUG("Fix IOS Receive Packet[%d--->%d]\r\n", 
+										actual_length, uSdev->protlen);			
+			uSdev->prohlen = uSdev->protlen;
+		}else{
+			uSdev->prohlen= actual_length;
+		}
 		tbuffer += uSdev->prohlen;
 		if(uSdev->protlen<= uSdev->max_payload &&
 				(read_length = uSdev->protlen-uSdev->prohlen)){
@@ -641,8 +668,12 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 				uSdev->protlen<= uSdev->max_payload){
 			*buffer = payload;
 			*rsize = payload_length;
-			/*Send ACK*/			
-			send_tcp_ack(uSdev);
+			if(uSdev->protlen == (mux_header_size+ sizeof(struct tcphdr))){
+				PRODEBUG("We Receive TCP ACK Not Send ACK To Peer..\r\n");
+			}else{
+				/*Send ACK*/	
+				send_tcp_ack(uSdev);
+			}
 			/*update tx_ack*/
 			uSdev->tcpinfo.tx_ack += payload_length;
 			PRODEBUG("We Receive it Finish one time..\r\n");
