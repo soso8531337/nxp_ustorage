@@ -381,6 +381,42 @@ static int usStorage_diskLUN(struct scsi_head *header)
 	return 0;
 }
 
+static int usStorage_firmwareINFO(struct scsi_head *header)
+{
+	vs_acessory_parameter dinfo;	
+	int flen = sizeof(vs_acessory_parameter);
+	uint8_t *buffer = NULL;
+	uint32_t size = 0, total = 0;
+
+	if(usProtocol_GetAvaiableBuffer((void **)&buffer, &size)){
+		SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
+		return 1;
+	}	
+	SDEBUGOUT("AvaiableBuffer 0x%p[%dBytes]\r\n", buffer, size);
+	
+	total = sizeof(struct scsi_head);
+	memcpy(buffer, header, total);
+	memset(&dinfo, 0, sizeof(vs_acessory_parameter));
+	strcpy(dinfo.fw_version, "1.0");
+	strcpy(dinfo.hw_version, "1.0");
+	strcpy(dinfo.manufacture, "szitman");
+	strcpy(dinfo.model_name, "nxp");
+	strcpy(dinfo.sn, "1234567890");
+	strcpy(dinfo.license, "1234567890");
+	memcpy(buffer+total, &dinfo, flen);
+	total += flen;
+	
+	if(usProtocol_SendPackage(buffer, total)){
+		SDEBUGOUT("usProtocol_SendPackage Failed\r\n");
+		return 1;
+	}
+	SDEBUGOUT("usStorage_firmwareINFO Successful Firmware Info:\nVendor:%s\nProduct:%s\nVersion:%s\nSerical:%s\nLicense:%s", 
+					dinfo.manufacture, dinfo.model_name, dinfo.fw_version, dinfo.sn, dinfo.license);
+	
+	return 0;
+}
+
+
 static int usStorage_Handle(void)
 {	
 	uint8_t *buffer;
@@ -415,6 +451,9 @@ static int usStorage_Handle(void)
 			break;
 		case SCSI_GET_LUN:
 			usStorage_diskLUN(&header);
+			break;
+		case SCSI_FIRMWARE_INFO:
+			usStorage_firmwareINFO(&header);
 			break;
 		default:
 			SDEBUGOUT("Unhandle Command\r\n");

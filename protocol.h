@@ -54,6 +54,7 @@ enum {
   SCSI_UPDATE_START = 8,
   SCSI_UPDATE_DATA = 9 | SCSI_WFLAG,
   SCSI_UPDATE_END = 10,
+  SCSI_FIRMWARE_INFO=11,
 };
 
 enum {
@@ -81,5 +82,15 @@ struct scsi_inquiry_info{
   char version[ 32];
   char serial[32];
 }__attribute__((__packed__));
+
+typedef struct acessory_parameter
+{
+	char manufacture[32];
+	char model_name[32];
+	char sn[32];
+	char fw_version[16];
+	char hw_version[16];	
+	char license[128];
+}__attribute__((__packed__))vs_acessory_parameter;
 
 #endif
