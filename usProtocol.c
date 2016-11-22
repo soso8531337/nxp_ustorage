@@ -96,7 +96,8 @@ static struct accessory_t acc_default = {
 #define MPACKET_SIZE			(512)	/*Small packets size limited*/
 #define IOS_PROHEADER(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct tcphdr))
 #define IOS_WIN_SIZE				131072 /*Must Not change this value*/
-#define USB_MTU				(8*1024)
+//#define USB_MTU				(8*1024)
+#define USB_MTU				(33*1024)
 // max transmission packet size
 // libusb fragments these too, but doesn't send ZLPs so we're safe
 // but we need to send a ZLP ourselves at the end (see usb-linux.c)
@@ -209,7 +210,7 @@ usStorage_info uSinfo;
 /*This is the global buffer for send usb data or receive usb data
 * It is very important
 */
-uint8_t usbBuffer[USB_MTU];
+uint8_t usbBuffer[USB_MTU] __attribute__((section ("USB_RAM1"), zero_init));    // Memory dedicated for the USB Host Controlle;
 
 
 

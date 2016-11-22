@@ -98,6 +98,93 @@ static USB_ClassInfo_MS_Host_t UStorage_Interface[]	= {
 	
 };
 
+void scu_pinmux(unsigned port, unsigned pin, unsigned mode, unsigned func)
+{
+	volatile unsigned int * const scu_base=(unsigned int*)(LPC_SCU_BASE);
+	scu_base[(PORT_OFFSET*port+PIN_OFFSET*pin)/4]=mode+func;
+} /* scu_pinmux */
+
+#define SCU_SFSPx(port, pin) (*((volatile uint32_t *) ((LPC_SCU_BASE + PORT_OFFSET * port + PIN_OFFSET * pin))))
+/**
+  \fn          int32_t SCU_PinConfiguare (uint8_t port, uint8_t pin, uint32_t pin_cfg)
+  \brief       Set pin function and electrical characteristics
+  \param[in]   port       Port number (0..15)
+  \param[in]   pin        Pin number (0..31)
+  \param[in]   pin_cfg    pin_cfg configuration bit mask
+   - \b  0: function succeeded
+   - \b -1: function failed
+*/
+int32_t SCU_PinConfigure (uint8_t port, uint8_t pin, uint32_t pin_cfg) 
+{
+	if ((port > 15) || (pin > 31)) return -1;
+	SCU_SFSPx(port, pin) = pin_cfg;
+	return 0;
+}
+
+int32_t SCU_USB1_PinConfigure (uint32_t USB1_pin_cfg) 
+{
+	LPC_SCU->SFSUSB = USB1_pin_cfg;
+	return 0;
+}
+
+#define SCU_SFSUSB_AIM                (1    <<  0)
+#define SCU_SFSUSB_ESEA               (1    <<  1)
+#define SCU_SFSUSB_EPD                (1    <<  2)
+#define SCU_SFSUSB_EPWR               (1    <<  4)
+#define SCU_SFSUSB_VBUS               (1    <<  5)
+
+#define SCU_USB1_PIN_CFG_AIM                  (SCU_SFSUSB_AIM )
+#define SCU_USB1_PIN_CFG_ESEA                 (SCU_SFSUSB_ESEA)
+#define SCU_USB1_PIN_CFG_EPD                  (SCU_SFSUSB_EPD )
+#define SCU_USB1_PIN_CFG_EPWR                 (SCU_SFSUSB_EPWR)
+#define SCU_USB1_PIN_CFG_VBUS                 (SCU_SFSUSB_VBUS)
+
+#define USB_PORTSC1_H_PTS_POS                  (          30U)
+#define USB_PORTSC1_H_PTS_MSK                  (3UL    << USB_PORTSC1_H_PTS_POS)
+#define USB_PORTSC1_H_PTS(n)                   (((n)   << USB_PORTSC1_H_PTS_POS) & USB_PORTSC1_H_PTS_MSK)
+static void SetUsb1ClockPinmux( void )
+{
+	volatile int32_t tmo = 1000;
+	uint32_t  portsc;
+		
+#if (RTE_USB_USB1_HS_PHY_EN)// modified by Roger
+	SCU_PinConfigure(RTE_USB1_ULPI_CLK_PORT, RTE_USB1_ULPI_CLK_BIT,  RTE_USB1_ULPI_CLK_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF);
+	SCU_PinConfigure(RTE_USB1_ULPI_DIR_PORT, RTE_USB1_ULPI_DIR_BIT,  RTE_USB1_ULPI_DIR_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF);
+	SCU_PinConfigure(RTE_USB1_ULPI_STP_PORT, RTE_USB1_ULPI_STP_BIT,  RTE_USB1_ULPI_STP_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF);
+	SCU_PinConfigure(RTE_USB1_ULPI_NXT_PORT, RTE_USB1_ULPI_NXT_BIT,  RTE_USB1_ULPI_NXT_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF);
+	SCU_PinConfigure(RTE_USB1_ULPI_D0_PORT,  RTE_USB1_ULPI_D0_BIT,   RTE_USB1_ULPI_D0_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF );
+	SCU_PinConfigure(RTE_USB1_ULPI_D1_PORT,  RTE_USB1_ULPI_D1_BIT,   RTE_USB1_ULPI_D1_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF );
+	SCU_PinConfigure(RTE_USB1_ULPI_D2_PORT,  RTE_USB1_ULPI_D2_BIT,   RTE_USB1_ULPI_D2_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF );
+	SCU_PinConfigure(RTE_USB1_ULPI_D3_PORT,  RTE_USB1_ULPI_D3_BIT,   RTE_USB1_ULPI_D3_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF );
+	SCU_PinConfigure(RTE_USB1_ULPI_D4_PORT,  RTE_USB1_ULPI_D4_BIT,   RTE_USB1_ULPI_D4_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF );
+	SCU_PinConfigure(RTE_USB1_ULPI_D5_PORT,  RTE_USB1_ULPI_D5_BIT,   RTE_USB1_ULPI_D5_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF );
+	SCU_PinConfigure(RTE_USB1_ULPI_D6_PORT,  RTE_USB1_ULPI_D6_BIT,   RTE_USB1_ULPI_D6_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF );
+	SCU_PinConfigure(RTE_USB1_ULPI_D7_PORT,  RTE_USB1_ULPI_D7_BIT,   RTE_USB1_ULPI_D7_FUNC | SCU_SFS_EPUN | SCU_SFS_EHS | SCU_SFS_EZI | SCU_SFS_ZIF );
+#endif
+
+	/* switch to ulpi phy and turn on the power to phy*/
+	printf("PORTSC1_H = %x\r\n",LPC_USB1->PORTSC1_H);
+	portsc = LPC_USB1->PORTSC1_H & 0x00FFFFFF;
+	portsc |= 0x80000000;
+	LPC_USB1->PORTSC1_H = portsc;
+	/* reset the controller */
+	printf("bask %x \r\n", &(LPC_CCU1->CLKCCU[CLK_MX_USB1].CFG));
+	LPC_CGU->BASE_CLK[CLK_BASE_USB1]     = (0x01U << 11) | (0x0CU << 24) ; 
+
+	/* disable USB1_CLOCK */
+	LPC_CCU1->CLKCCU[CLK_USB1].CFG = 0;
+
+	/* reset the controller */
+	LPC_CCU1->CLKCCU[CLK_MX_USB1].CFG |= 1U;
+	while (!(LPC_CCU1->CLKCCU[CLK_MX_USB1].STAT & 1U));
+	LPC_USB1->PORTSC1_H |=   USB_PORTSC1_H_PTS(2U);
+	SCU_USB1_PinConfigure (SCU_USB1_PIN_CFG_AIM  |
+					SCU_USB1_PIN_CFG_ESEA |
+					SCU_USB1_PIN_CFG_EPD  |
+					SCU_USB1_PIN_CFG_EPWR);
+}
+
+
 /*****************************************************************************
  * Public types/enumerations/variables
  ****************************************************************************/
@@ -111,7 +198,8 @@ static void usSys_init(int port_num)
 	if (port_num== 0){
 		Chip_USB0_Init();
 	} else {
-		Chip_USB1_Init();
+		SetUsb1ClockPinmux();
+//		Chip_USB1_Init();
 	}
 #endif
 	USB_Init(UStorage_Interface[port_num].Config.PortNumber, USB_MODE_Host);
@@ -410,7 +498,7 @@ static int usStorage_firmwareINFO(struct scsi_head *header)
 		SDEBUGOUT("usProtocol_SendPackage Failed\r\n");
 		return 1;
 	}
-	SDEBUGOUT("usStorage_firmwareINFO Successful Firmware Info:\nVendor:%s\nProduct:%s\nVersion:%s\nSerical:%s\nLicense:%s", 
+	SDEBUGOUT("usStorage_firmwareINFO Successful Firmware Info:\r\nVendor:%s\r\nProduct:%s\r\nVersion:%s\r\nSerical:%s\r\nLicense:%s\r\n", 
 					dinfo.manufacture, dinfo.model_name, dinfo.fw_version, dinfo.sn, dinfo.license);
 	
 	return 0;
