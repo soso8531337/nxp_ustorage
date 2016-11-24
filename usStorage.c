@@ -226,6 +226,24 @@ static void SetupHardware(void)
  ****************************************************************************/
 static int usStorage_sendHEAD(struct scsi_head *header)
 {
+	uint8_t buffer[PRO_HDR] = {0};
+
+	if(!header){
+		return 1;
+	}
+
+	memcpy(buffer, header, PRO_HDR);
+	/*Send To Phone*/
+	if(usProtocol_SendPackage(buffer, PRO_HDR)){
+		SDEBUGOUT("Send To Phone[Just Header Error]\r\n");
+		return 1;
+	}
+
+	return 0;
+}
+
+static int usStorage_sendHEADBUF(struct scsi_head *header)
+{
 	uint8_t *buffer = NULL;
 	uint32_t size = 0;
 
@@ -247,7 +265,10 @@ static int usStorage_sendHEAD(struct scsi_head *header)
 	return 0;
 }
 
-static int usStorage_diskREAD(struct scsi_head *header)
+/*
+*Read Multi TIme
+*/
+static int usStorage_diskMULREAD(struct scsi_head *header)
 {
 	uint8_t *buffer = NULL;
 	uint32_t size = 0, rsize = 0, avsize = 0;
@@ -305,6 +326,79 @@ static int usStorage_diskREAD(struct scsi_head *header)
 	return 0;
 }
 
+/*Read Once*/
+static int usStorage_diskSIGREAD(struct scsi_head *header)
+{
+	uint8_t *buffer = NULL;
+	uint32_t size = 0;
+
+	if(!header){
+		SDEBUGOUT("usStorage_diskREAD Parameter Failed\r\n");
+		return 1;
+	}
+	
+	if(usProtocol_GetAvaiableBuffer((void **)&buffer, &size)){
+		SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
+		return 1;
+	}
+	if(size < header->len + PRO_HDR){
+		SDEBUGOUT("usStorage_diskSIGREAD Space Not Enough\r\n");
+		return 1;
+	}
+	memcpy(buffer, header, PRO_HDR);
+
+	if(usDisk_DiskReadSectors(buffer+PRO_HDR, header->addr, OP_DIV(header->len))){
+		SDEBUGOUT("Read Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
+				header->len+PRO_HDR, header->addr, OP_DIV(header->len));
+		/*Write to Phone*/
+		header->relag = 1;
+		usStorage_sendHEAD(header);	
+		return 1;
+	}
+	/*Send To Phone*/
+	if(usProtocol_SendPackage(buffer, PRO_HDR+header->len)){
+		SDEBUGOUT("Send To Phone[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
+				header->len+PRO_HDR, header->addr, OP_DIV(header->len));
+		return 1;
+	}
+	
+	SDEBUGOUT("REQUEST READ OK:\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
+			header->wtag, header->ctrid, header->addr, header->len, header->wlun);
+	
+	return 0;
+}
+
+static int usStorage_diskREAD(struct scsi_head *header)
+{
+	uint32_t size = 0;
+	uint8_t *buffer = NULL;
+
+	if(!header){
+		SDEBUGOUT("usStorage_diskREAD Parameter Error\r\n");
+		return 1;
+	}
+
+	if(!header->len){
+		SDEBUGOUT("usStorage_diskREAD 0Bytes\r\n");
+		/*Write to Phone*/
+		header->relag = 1;
+		usStorage_sendHEAD(header);	
+		return 1;
+	}
+	
+	if(usProtocol_GetAvaiableBuffer((void **)&buffer, &size)){
+		SDEBUGOUT("usStorage_diskREAD Failed\r\n");
+		return 1;
+	}
+	if(size < header->len+PRO_HDR){
+		SDEBUGOUT("Use usStorage_diskMULREAD To Send[%d/%d]\r\n",
+					header->len+PRO_HDR, size);
+		return usStorage_diskMULREAD(header);
+	}
+
+	return usStorage_diskSIGREAD(header);
+}
+
 static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_head *header)
 {
 	uint32_t hSize = recvSize;
@@ -333,6 +427,9 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 			usDisk_DiskWriteSectors(buffer+PRO_HDR, addr, sdivSize)){
 		SDEBUGOUT("REQUEST WRITE Error[addr:%d  SectorCount:%d]\r\n",
 						addr, sdivSize);
+		/*Write to Phone*/
+		header->relag = 1;
+		usStorage_sendHEAD(header);	
 		return 1;
 	}
 	addr += sdivSize;
@@ -344,6 +441,9 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 		uint8_t *ptr = NULL, *pbuffer = NULL;
 		if(usProtocol_RecvPackage((void **)&pbuffer, hSize, &paySize)){
 			SDEBUGOUT("usProtocol_RecvPackage Failed\r\n");
+			/*Write to Phone*/
+			header->relag = 1;
+			usStorage_sendHEAD(header);			
 			return 1;
 		}
 		/*add handle size*/		
@@ -366,6 +466,9 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 			if(usDisk_DiskWriteSectors(sector, addr, 1)){
 				SDEBUGOUT("REQUEST WRITE Last Sector Error[addr:%d SectorCount:%d]\r\n",
 							addr, secCount);
+				/*Write to Phone*/
+				header->relag = 1;
+				usStorage_sendHEAD(header);				
 				return 1;
 			}
 			/*add var*/
@@ -387,6 +490,9 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 		if(secCount && usDisk_DiskWriteSectors(ptr, addr, secCount)){
 			SDEBUGOUT("REQUEST WRITE Error[addr:%d	SectorCount:%d]\r\n",
 							addr, sdivSize);
+			/*Write to Phone*/
+			header->relag = 1;
+			usStorage_sendHEAD(header);				
 			return 1;
 		}
 		/*Add var*/
