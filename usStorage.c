@@ -341,13 +341,12 @@ static int usStorage_diskSIGREAD(struct scsi_head *header)
 		SDEBUGOUT("usProtocol_GetAvaiableBuffer Failed\r\n");
 		return 1;
 	}
-	if(size < header->len + PRO_HDR){
+	if(size < header->len){
 		SDEBUGOUT("usStorage_diskSIGREAD Space Not Enough\r\n");
 		return 1;
 	}
-	memcpy(buffer, header, PRO_HDR);
 
-	if(usDisk_DiskReadSectors(buffer+PRO_HDR, header->addr, OP_DIV(header->len))){
+	if(usDisk_DiskReadSectors(buffer, header->addr, OP_DIV(header->len))){
 		SDEBUGOUT("Read Sector Error[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
 				header->len+PRO_HDR, header->addr, OP_DIV(header->len));
 		/*Write to Phone*/
@@ -356,7 +355,8 @@ static int usStorage_diskSIGREAD(struct scsi_head *header)
 		return 1;
 	}
 	/*Send To Phone*/
-	if(usProtocol_SendPackage(buffer, PRO_HDR+header->len)){
+	usStorage_sendHEAD(header); 
+	if(usProtocol_SendPackage(buffer, header->len)){
 		SDEBUGOUT("Send To Phone[SndTotal:%d addr:%d  SectorCount:%d]\r\n",
 				header->len+PRO_HDR, header->addr, OP_DIV(header->len));
 		return 1;
@@ -666,15 +666,25 @@ static int usStorage_Handle(void)
  *  calls the filesystem function to read files from USB Disk
  *Ustorage Project by Szitman 20161022
  */
+void vs_main_disk(void *pvParameters)
+{
+	while(1){
+		while (USB_HostState[1] != HOST_STATE_Configured) {
+			USB_USBTask(1, USB_MODE_Host);
+			continue;
+		}		
+		vTaskDelay(100);
+	}
+}
+
 void vs_main(void *pvParameters)
 {
 	SetupHardware();
 
 	SDEBUGOUT("U-Storage Running.\r\n");
-	while (USB_HostState[1] != HOST_STATE_Configured) {
-		USB_USBTask(1, USB_MODE_Host);
-		continue;
-	}	
+	xTaskCreate(vs_main_disk, "vTaskDisk", 1024,
+			NULL, (tskIDLE_PRIORITY + 2UL), (TaskHandle_t *) NULL);
+
 	while(1){
 		if (USB_HostState[0] != HOST_STATE_Configured) {
 			USB_USBTask(0, USB_MODE_Host);
@@ -683,6 +693,7 @@ void vs_main(void *pvParameters)
 		/*Connect Phone Device*/
 		if(usProtocol_ConnectPhone()){
 			/*Connect to Phone Failed*/
+			vTaskDelay(200);
 			continue;
 		}
 		usStorage_Handle();
