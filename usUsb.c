@@ -42,6 +42,8 @@ enum{
 #define USB_TRUE		1
 #define USB_FALSE		0
 
+#define MAX_USB_PACKAGE   	(16*1024)
+#define MAX_SCSI_SECTOR   	(32)
 
 /***********************CHIP RELETIVE USB****************************/
 /*****************************************************************************
@@ -212,11 +214,16 @@ static uint8_t NXP_BlukPacketSend(usb_device *usbdev, uint8_t *buffer,
 					MSInterfaceInfo->Config.DataOUTPipeNumber);
 		Pipe_Unfreeze();
 
-		if((length -already) % 512 == 0){
-			sndlen = length -already-1;
+		if(length-already > MAX_USB_PACKAGE){
+			sndlen = MAX_USB_PACKAGE;
 		}else{
-			sndlen= length -already;
+			if((length -already) % 512 == 0){
+				sndlen = length -already-1;
+			}else{
+				sndlen= length -already;
+			}
 		}
+
 		ErrorCode = Pipe_Streaming(MSInterfaceInfo->Config.PortNumber,buffer+already, sndlen, 
 					usbdev->wMaxPacketSize);
 		if(ErrorCode == PIPE_RWSTREAM_IncompleteTransfer){
@@ -426,14 +433,30 @@ uint8_t NXP_DiskReadSectors(usb_device *usbdev,
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 	int ret;
-	
-	ret = MS_Host_ReadDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
-						secStart, numSec, BlockSize, buff);
-	if(ret) {
-		USBDEBUG("Error reading device block. ret = %d\r\n", ret);
-		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
-		return USB_REGEN;
+	void *curBuf = NULL;
+	uint32_t already = 0, curSec;
+	uint8_t numSecPer;
+
+	curBuf = buff;
+	curSec = secStart;
+	while(already < numSec){		
+		if(numSec-already > MAX_SCSI_SECTOR){
+			numSecPer = MAX_SCSI_SECTOR;
+		}else{
+			numSecPer = numSec-already;
+		}
+		ret = MS_Host_ReadDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+							curSec, numSecPer, BlockSize, curBuf+already*BlockSize);
+		if(ret) {
+			USBDEBUG("Error reading device block. ret = %d\r\n", ret);
+			USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+			return USB_REGEN;
+		}
+		already += numSecPer;
+		curSec += numSecPer;
+		USBDEBUG("SCSI Read %dSectors [%d/%d/%d]\r\n", numSecPer, curSec, already, numSec);		
 	}
+
 	return USB_REOK;
 }
 
@@ -441,12 +464,30 @@ uint8_t NXP_DiskWriteSectors(usb_device *usbdev,
 					void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 	int ret;
-	ret = MS_Host_WriteDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
-						secStart, numSec, BlockSize, buff);
-	if(ret) {
-		USBDEBUG("Error writing device block. ret = %d\r\n", ret);
-		return USB_REGEN;
+	void *curBuf = NULL;
+	uint32_t already = 0, curSec;
+	uint8_t numSecPer;
+
+	curBuf = buff;
+	curSec = secStart;
+	while(already < numSec){		
+		if(numSec-already > MAX_SCSI_SECTOR){
+			numSecPer = MAX_SCSI_SECTOR;
+		}else{
+			numSecPer = numSec-already;
+		}
+		ret = MS_Host_WriteDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+							curSec, numSecPer, BlockSize, curBuf+already*BlockSize);
+		if(ret) {
+			USBDEBUG("Error writing device block. ret = %d\r\n", ret);
+			USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+			return USB_REGEN;
+		}
+		already += numSecPer;
+		curSec += numSecPer;
+		USBDEBUG("SCSI Write %dSectors [%d/%d/%d]\r\n", numSecPer, curSec, already, numSec);		
 	}
+
 	return USB_REOK;
 }
 uint8_t NXP_GetMaxLUN(usb_device *usbdev, uint8_t *LunIndex)

@@ -411,13 +411,41 @@ static int send_tcp_ack(mux_itunes *conn)
 static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32_t size)
 {	
 	void *tbuffer = buffer;
-	uint32_t tsize = size;
+	uint32_t  sndSize = 0, curSize = 0;
 	
 	if(!buffer || !size){
 		return PROTOCOL_REPARA;
 	}
 #define IOS_MAGIC_LIMIT		4096	
 #define IOS_MAGIC_SIZE			512
+#define IOS_MAX_PACKET		(32*1024)
+	while(curSize < size){
+		if(size-curSize > IOS_MAX_PACKET){
+			sndSize = IOS_MAX_PACKET-IOS_MAGIC_SIZE;
+		}else{
+			sndSize = size-curSize;
+		}
+		/*Send ios package*/
+		if(sndSize % IOS_MAGIC_LIMIT == 0){
+			PRODEBUG("Need To Divide Package Because Package size is %d\r\n", sndSize);
+			if(send_tcp(uSdev, TH_ACK, tbuffer+curSize, sndSize-IOS_MAGIC_SIZE) < 0){
+				PRODEBUG("usProtocol_iosSendPackage Error:%p Size:%d\r\n", buffer, sndSize);
+				return PROTOCOL_REGEN;
+			}		
+			uSdev->tcpinfo.tx_seq += (sndSize-IOS_MAGIC_SIZE);
+			curSize += (sndSize-IOS_MAGIC_SIZE);
+			sndSize = IOS_MAGIC_SIZE;
+		}
+		if(send_tcp(uSdev, TH_ACK, tbuffer+curSize, sndSize) < 0){
+			PRODEBUG("usProtocol_iosSendPackage Error:%p Size:%d\r\n", buffer, sndSize);
+			return PROTOCOL_REGEN;
+		}
+		uSdev->tcpinfo.tx_seq += sndSize;		
+		curSize += sndSize;
+		PRODEBUG("usProtocol_iosSendPackage Successful:%p Size:%d curSize:%d\r\n", 
+				buffer, sndSize, curSize);		
+	}
+#if 0	
 	/*Send ios package*/
 	if(size % IOS_MAGIC_LIMIT == 0){
 		PRODEBUG("Need To Divide Package Because Package size is %d\r\n", size);
@@ -434,6 +462,8 @@ static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32
 		return PROTOCOL_REGEN;
 	}
 	uSdev->tcpinfo.tx_seq += size;
+#endif
+
 	return PROTOCOL_REOK;
 }
 static uint8_t usProtocol_aoaSendPackage(mux_itunes *uSdev, void *buffer, uint32_t size)
