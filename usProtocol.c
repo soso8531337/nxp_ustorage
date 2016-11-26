@@ -137,7 +137,7 @@ enum{
 	PRO_ANDROID
 };
 
-#if defined(DEBUG_ENABLE)
+#if defined(DEBUG_ENABLE1)
 #define PRODEBUG(...) do {printf("[PRO Mod]");printf(__VA_ARGS__);} while(0)
 #else
 #define PRODEBUG(...)

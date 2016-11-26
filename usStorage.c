@@ -56,7 +56,7 @@
 /*****************************************************************************
  * Private types/enumerations/variables
  ****************************************************************************/
-#if defined(DEBUG_ENABLE)
+#if defined(DEBUG_ENABLE1)
 #define SDEBUGOUT(...) do {printf("[Storage Mod]");printf(__VA_ARGS__);} while(0)
 #else
 #define SDEBUGOUT(...)

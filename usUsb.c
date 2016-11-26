@@ -33,7 +33,7 @@ enum{
 	USB_REGEN
 };
 
-#if defined(DEBUG_ENABLE)
+#if defined(DEBUG_ENABLE1)
 #define USBDEBUG(...) do {printf("[USB Mod]");printf(__VA_ARGS__);} while(0)
 #else
 #define USBDEBUG(...)

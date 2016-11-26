@@ -49,7 +49,7 @@
 #define MSC_FTRANS_SUBCLASS			0x06
 #define MSC_FTRANS_PROTOCOL			0x50
 
-#if defined(DEBUG_ENABLE)
+#if defined(DEBUG_ENABLE1)
 #define DSKDEBUG(...) do {printf("[DISK Mod]");printf(__VA_ARGS__);} while(0)
 #else
 #define DSKDEBUG(...)
