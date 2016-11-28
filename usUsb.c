@@ -73,52 +73,27 @@ static uint8_t NXP_BlukPacketReceiveStream(usb_device *usbdev, uint8_t *buffer,
 													uint32_t length, uint32_t *actual_length)
 {
 	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
-	uint8_t *DataStream = (uint8_t *) buffer;
-	uint8_t corenum;
-	uint16_t Length = length;
+	uint32_t already = 0;
 	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
 
 	if(!usbdev || !buffer || !actual_length){
 		return USB_REPARA;
 	}
-	
-	Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
-			MSInterfaceInfo->Config.DataINPipeNumber);	
-	corenum = MSInterfaceInfo->Config.PortNumber;
-	while (Length) {
-		if (Pipe_IsReadWriteAllowed(corenum)) {
-			*DataStream = Pipe_Read_8(corenum);
-			DataStream++;
-			Length--;
+	*actual_length = 0;
+	while (already < length) {		
+		uint32_t actual = 0;
+		ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataINPipeNumber,
+						buffer+already, length-already, &actual);
+		if (ErrorCode) {
+			USBDEBUG("USB Receive Error[%d]\r\n", ErrorCode);
+			return ErrorCode;
 		}
-		else {
-			Pipe_ClearIN(corenum);
-			HcdDataTransfer(PipeInfo[corenum][pipeselected[corenum]].PipeHandle,
-							PipeInfo[corenum][pipeselected[corenum]].Buffer,
-							MIN(Length, PipeInfo[corenum][pipeselected[corenum]].BufferSize),
-							&PipeInfo[corenum][pipeselected[corenum]].ByteTransfered);
-			ErrorCode = Pipe_WaitUntilReady(corenum);
-			if (ErrorCode) {				
-				USBDEBUG("USB Stream Receive Error[%d-->Length=%d]\r\n", ErrorCode, Length);
-				return ErrorCode;
-			}
-			if(Pipe_BytesInPipe(corenum) % 512){
-				/*If do not handle the incomplete package, pipe will be broken I do not know the reason*/
-				USBDEBUG("USB Stream HcdDataTransfer Receive Not a Complete Package[%d]\r\n", Pipe_BytesInPipe(corenum));
-				while (Pipe_IsReadWriteAllowed(corenum)) {
-					*DataStream = Pipe_Read_8(corenum);
-					DataStream++;
-					Length--;
-				}
-				*actual_length = length-Length;
-				USBDEBUG("USB Stream Receive Not Complete [%d/%dBytes]\r\n", *actual_length, length);
-				return USB_REOK;
-			}
-			//USBDEBUG("USB Stream HcdDataTransfer Receive[%d]\r\n", Pipe_BytesInPipe(corenum));
-		}
+		already+= actual;
+		*actual_length += actual;
+
+		//USBDEBUG("USB Stream HcdDataTransfer Receive[%d]\r\n", Pipe_BytesInPipe(corenum));
 	}
-	
-	*actual_length = length;
+
 	USBDEBUG("USB Stream Receive [%d/%dBytes]\r\n", *actual_length, length);
 
 	return USB_REOK;
@@ -161,36 +136,19 @@ static uint8_t NXP_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer,
 													uint32_t length, uint32_t *actual_length)
 {
 	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
-	uint8_t *DataStream = (uint8_t *) buffer;
-	uint32_t sndlen = 0;
 	
 	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
 
 	if(!usbdev || !buffer || !actual_length){
 		return USB_REPARA;
 	}
-	Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
-			MSInterfaceInfo->Config.DataINPipeNumber);
 
-	if(Pipe_IsReadWriteAllowed(MSInterfaceInfo->Config.PortNumber) == 0){
-		Pipe_ClearIN(MSInterfaceInfo->Config.PortNumber);
-		HcdDataTransfer(PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].PipeHandle,
-						PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].Buffer,
-						MIN(length, PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].BufferSize),
-						&PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].ByteTransfered);
-		ErrorCode = Pipe_WaitUntilReady(MSInterfaceInfo->Config.PortNumber);
-		if (ErrorCode) {
-			USBDEBUG("USB Receive Error[%d]\r\n", ErrorCode);
-			return ErrorCode;
-		}
+	ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataINPipeNumber,
+					buffer, length, actual_length);
+	if (ErrorCode) {
+		USBDEBUG("USB Receive Error[%d]\r\n", ErrorCode);
+		return ErrorCode;
 	}
-	while (Pipe_IsReadWriteAllowed(MSInterfaceInfo->Config.PortNumber)) {
-		*DataStream = Pipe_Read_8(MSInterfaceInfo->Config.PortNumber);
-		DataStream++;
-		sndlen++;
-	}
-
-	*actual_length = sndlen;
 	USBDEBUG("USB Receive [%d/%dBytes]\r\n", *actual_length, length);
 
 	return USB_REOK;
@@ -206,46 +164,27 @@ static uint8_t NXP_BlukPacketSend(usb_device *usbdev, uint8_t *buffer,
 	if(!usbdev || !buffer || !actual_length){
 		return USB_REPARA;
 	}
-	
+	*actual_length= 0;
 	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
 	while(already < length){		
 		uint32_t sndlen = 0;
-		Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
-					MSInterfaceInfo->Config.DataOUTPipeNumber);
-		Pipe_Unfreeze();
 
-		if(length-already > MAX_USB_PACKAGE){
-			sndlen = MAX_USB_PACKAGE;
+		if(already == 0 && length % 512 == 0){
+			ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataOUTPipeNumber,
+							buffer, length-1, &sndlen);
 		}else{
-			if((length -already) % 512 == 0){
-				sndlen = length -already-1;
-			}else{
-				sndlen= length -already;
-			}
+			ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataOUTPipeNumber,
+							buffer+already, length-already, &sndlen);
 		}
 
-		ErrorCode = Pipe_Streaming(MSInterfaceInfo->Config.PortNumber,buffer+already, sndlen, 
-					usbdev->wMaxPacketSize);
-		if(ErrorCode == PIPE_RWSTREAM_IncompleteTransfer){
-			USBDEBUG("PiPe Streaming Not Ready[%d]...\r\n", PIPE_RWSTREAM_IncompleteTransfer);			
-			continue;
+		if (ErrorCode) {
+			USBDEBUG("USB Send Error[%d]\r\n", ErrorCode);
+			return ErrorCode;
 		}
-	#ifdef DEBUG
-		else{
-			USBDEBUG("Send PiPe Streaming Write[%dBytes]...\r\n", 
-			PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].ByteTransfered);
-		}
-	#endif	
-		while(((ErrorCode = MSInterfaceInfo->State.IsActive) == USB_TRUE)
-				&& !Pipe_IsStatusOK(MSInterfaceInfo->Config.PortNumber));
-		
-		if(ErrorCode != USB_TRUE){
-			USBDEBUG("CallBack Excute Error Something Happen...\r\n");
-			return USB_REGEN;
-		}
-		already += sndlen;
+		USBDEBUG("Send PiPe Streaming Write[%dBytes]...\r\n", sndlen);
+		already += sndlen;		
+		*actual_length += sndlen;
 	}
-	*actual_length = length;
 	USBDEBUG("USB Send [%d/%dBytes]\r\n", *actual_length, length);
 	return USB_REOK;
 }
@@ -618,49 +557,61 @@ static uint8_t LINUX_BlukPacketSend(usb_device *usbdev, uint8_t *buffer,
 {
 	int8_t rc;
 	int transferred = 0;
-
+	uint32_t already = 0, sndlen;
+	
 	if(!usbdev || !buffer || !actual_length){
 		return USB_REGEN;
 	}
-	rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
-							usbdev->ep_out,
-							buffer,
-							length,
-							&transferred,
-							0);
-	if(rc < 0){
-			if (rc  == LIBUSB_ERROR_TIMEOUT){
-				USBDEBUG("LIBUSB Send Timeout\n");
-			}else if(rc == LIBUSB_ERROR_NO_DEVICE){
-				USBDEBUG("Device OffLine....\n");
-			}else{
-				USBDEBUG("LIBUSB bulk transfer error %d\n", rc);
-			}
-			return USB_REGEN;
-	}
-	if(length % usbdev->wMaxPacketSize == 0){
-		uint8_t buf[1];		
-		int transfer = 0;
-		USBDEBUG("LIBUSB Send ZLP.\r\n");
+#define MAX_USB_PACKAGE2   	(32*1024)
+	
+	while(already < length){	
+		if(length-already > MAX_USB_PACKAGE2){
+			sndlen = MAX_USB_PACKAGE2;
+		}else{
+			sndlen= length -already;
+		}
+		
 		rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
 								usbdev->ep_out,
-								buf,
-								0,
-								&transfer,
+								buffer+already,
+								sndlen,
+								&transferred,
 								0);
 		if(rc < 0){
 				if (rc  == LIBUSB_ERROR_TIMEOUT){
-					USBDEBUG("LIBUSB Send ZLP Timeout\n");
+					USBDEBUG("LIBUSB Send Timeout\n");
 				}else if(rc == LIBUSB_ERROR_NO_DEVICE){
 					USBDEBUG("Device OffLine....\n");
 				}else{
-					USBDEBUG("LIBUSB bulk transfer  ZLP error %d\n", rc);
+					USBDEBUG("LIBUSB bulk transfer error %d\n", rc);
 				}
 				return USB_REGEN;
-		}		
-	}	
+		}
+		if(sndlen % usbdev->wMaxPacketSize == 0){
+			uint8_t buf[1]; 	
+			int transfer = 0;
+			USBDEBUG("LIBUSB Send ZLP.\r\n");
+			rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
+									usbdev->ep_out,
+									buf,
+									0,
+									&transfer,
+									0);
+			if(rc < 0){
+					if (rc	== LIBUSB_ERROR_TIMEOUT){
+						USBDEBUG("LIBUSB Send ZLP Timeout\n");
+					}else if(rc == LIBUSB_ERROR_NO_DEVICE){
+						USBDEBUG("Device OffLine....\n");
+					}else{
+						USBDEBUG("LIBUSB bulk transfer	ZLP error %d\n", rc);
+					}
+					return USB_REGEN;
+			}	
+		}
+		already += transferred;
+	}
 
-	*actual_length = transferred;
+	*actual_length = already;
 	USBDEBUG("LIBUSB Send Successful:%u/%d.\r\n", *actual_length, length);
 
 	return rc?USB_REGEN:USB_REOK;
