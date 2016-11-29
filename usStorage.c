@@ -29,7 +29,9 @@
  * copyright, permission, and disclaimer notice must appear in all copies of
  * this code.
  */
- 
+ #if defined(NXP_CHIP_18XX)
+#pragma arm section code ="USB_RAM2", rwdata="USB_RAM2"
+#endif
  #include "usUsb.h"
 #include "usDisk.h"
 #include "usProtocol.h"
@@ -795,4 +797,9 @@ int main(int argc, char **argv)
 	}
 }
 #endif //#if defined(NXP_CHIP_18XX)
+
+#if defined(NXP_CHIP_18XX)
+#pragma arm section code, rwdata
+#endif 
+
 

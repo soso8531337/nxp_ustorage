@@ -6,6 +6,9 @@
  * Copyright(C) Szitman, 2016
  * All rights reserved.
  */
+ #if defined(NXP_CHIP_18XX)
+#pragma arm section code ="USB_RAM2", rwdata="USB_RAM2"
+#endif
 #include <string.h>
 #include "usProtocol.h"
 #include "usUsb.h"
@@ -420,7 +423,7 @@ static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32
 #define IOS_MAGIC_SIZE			512
 #define IOS_MAX_PACKET		(32*1024)
 	while(curSize < size){
-		if(size-curSize > IOS_MAX_PACKET){
+		if(size-curSize >= IOS_MAX_PACKET){
 			sndSize = IOS_MAX_PACKET-IOS_MAGIC_SIZE;
 		}else{
 			sndSize = size-curSize;
@@ -1555,4 +1558,10 @@ uint8_t usProtocol_RecvPackage(void **buffer, uint32_t tsize, uint32_t *rsize)
 		return usProtocol_aoaRecvPackage(&uSinfo.itunes, buffer, tsize, rsize);
 	}
 }
+
+#if defined(NXP_CHIP_18XX)
+#pragma arm section code, rwdata
+#endif 
+
+
 

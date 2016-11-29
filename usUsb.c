@@ -5,7 +5,9 @@
  * All rights reserved.
  *
  */
- 
+#if defined(NXP_CHIP_18XX)
+#pragma arm section code ="USB_RAM2", rwdata="USB_RAM2"
+#endif 
 #include <ctype.h>
 #include <stdio.h>
 #include "usUsb.h"
@@ -82,8 +84,14 @@ static uint8_t NXP_BlukPacketReceiveStream(usb_device *usbdev, uint8_t *buffer,
 	*actual_length = 0;
 	while (already < length) {		
 		uint32_t actual = 0;
-		ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataINPipeNumber,
+		if(already == 0 && length > 512){
+			/*we must receive 512*n, if it is not 512*n, divide twice*/
+			ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataINPipeNumber,
+						buffer, length-length%512, &actual);
+		}else{
+			ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataINPipeNumber,
 						buffer+already, length-already, &actual);
+		}
 		if (ErrorCode) {
 			USBDEBUG("USB Receive Error[%d]\r\n", ErrorCode);
 			return ErrorCode;
@@ -963,4 +971,9 @@ void usUsb_PrintStr(uint8_t *buffer, int length)
 	printf("\r\n");
 
 }
+#if defined(NXP_CHIP_18XX)
+#pragma arm section code, rwdata
+#endif 
+
+
 

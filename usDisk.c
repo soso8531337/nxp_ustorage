@@ -6,7 +6,9 @@
  * Copyright(C) Szitman, 2016
  * All rights reserved.
  */
-
+#if defined(NXP_CHIP_18XX)
+#pragma arm section code ="USB_RAM2", rwdata="USB_RAM2"
+#endif
 #include <stdint.h>
 #include "usDisk.h"
 #include "usUsb.h"
@@ -296,3 +298,9 @@ uint8_t usDisk_DiskInquiry(struct scsi_inquiry_info *inquiry)
 
 	return DISK_REOK;	
 }
+
+#if defined(NXP_CHIP_18XX)
+#pragma arm section code, rwdata
+#endif 
+
+
