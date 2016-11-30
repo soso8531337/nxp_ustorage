@@ -99,8 +99,8 @@ static struct accessory_t acc_default = {
 #define MPACKET_SIZE			(512)	/*Small packets size limited*/
 #define IOS_PROHEADER(X)		(( ((X) < 2) ? 8 : sizeof(struct mux_header))+sizeof(struct tcphdr))
 #define IOS_WIN_SIZE				131072 /*Must Not change this value*/
-//#define USB_MTU				(8*1024)
-#define USB_MTU				(33*1024)
+#define USB_MTU				(8*1024)
+//#define USB_MTU				(32*1024) //more than 32K may be error
 // max transmission packet size
 // libusb fragments these too, but doesn't send ZLPs so we're safe
 // but we need to send a ZLP ourselves at the end (see usb-linux.c)
@@ -463,14 +463,13 @@ static uint8_t usProtocol_aoaSendPackage(mux_itunes *uSdev, void *buffer, uint32
 							buffer, size);		
 		return PROTOCOL_REGEN;
 	}
-#define AOA_MAGIC_SIZE			511
 	/*aoa package send must send 16KB*n*/
 	curBuf = (uint8_t *)buffer;
 	while(already < size){		
 		uint32_t sndSize = 0, freeSize = 0;
 		freeSize = size-already;
 		if(freeSize >= USB_MTU_AOA){
-			sndSize = USB_MTU_AOA-AOA_MAGIC_SIZE;
+			sndSize = USB_MTU_AOA-1;
 		}else{
 			sndSize = freeSize;
 		}
