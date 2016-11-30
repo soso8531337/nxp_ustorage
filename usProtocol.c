@@ -108,6 +108,8 @@ static struct accessory_t acc_default = {
 // this results in three URBs per full transfer, 32 USB packets each
 // if there are ZLP issues this should make them show up easily too
 #define USB_MTU_IOS			(3 * 16384)
+#define USB_MTU_AOA		(1*16384)
+#define IOS_MAX_PACKET		(32*1024)
 
 #ifndef IPPROTO_TCP
 #define IPPROTO_TCP 		6
@@ -364,7 +366,7 @@ static int send_big_packet(mux_itunes *dev, enum mux_protocol proto, void *heade
 *send_tcp  will auto select memroy type to send package,
 *if package size less than MPACKET_SIZE, it will use send_small_packet
 */
-static int send_tcp(mux_itunes *conn, uint8_t flags, const unsigned char *data, int length)
+static int send_tcp(mux_itunes *conn, uint8_t flags, const uint8_t *data, int length)
 {
 	struct tcphdr th;
 	uint8_t mux_header_size = ((conn->version < 2) ? 8 : sizeof(struct mux_header));
@@ -413,7 +415,7 @@ static int send_tcp_ack(mux_itunes *conn)
 
 static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32_t size)
 {	
-	void *tbuffer = buffer;
+	uint8_t *tbuffer = (uint8_t *)buffer;
 	uint32_t  sndSize = 0, curSize = 0;
 	
 	if(!buffer || !size){
@@ -421,7 +423,6 @@ static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32
 	}
 #define IOS_MAGIC_LIMIT		4096	
 #define IOS_MAGIC_SIZE			512
-#define IOS_MAX_PACKET		(32*1024)
 	while(curSize < size){
 		if(size-curSize >= IOS_MAX_PACKET){
 			sndSize = IOS_MAX_PACKET-IOS_MAGIC_SIZE;
@@ -448,36 +449,42 @@ static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32
 		PRODEBUG("usProtocol_iosSendPackage Successful:%p Size:%d curSize:%d\r\n", 
 				buffer, sndSize, curSize);		
 	}
-#if 0	
-	/*Send ios package*/
-	if(size % IOS_MAGIC_LIMIT == 0){
-		PRODEBUG("Need To Divide Package Because Package size is %d\r\n", size);
-		if(send_tcp(uSdev, TH_ACK, tbuffer, size-IOS_MAGIC_SIZE) < 0){
-			PRODEBUG("usProtocol_iosSendPackage Error:%p Size:%d\r\n", buffer, size);
-			return PROTOCOL_REGEN;
-		}		
-		uSdev->tcpinfo.tx_seq += (size-IOS_MAGIC_SIZE);
-		tbuffer += (size-IOS_MAGIC_SIZE);
-		size = IOS_MAGIC_SIZE;
-	}
-	if(send_tcp(uSdev, TH_ACK, tbuffer, size) < 0){
-		PRODEBUG("usProtocol_iosSendPackage Error:%p Size:%d\r\n", buffer, size);
-		return PROTOCOL_REGEN;
-	}
-	uSdev->tcpinfo.tx_seq += size;
-#endif
 
 	return PROTOCOL_REOK;
 }
 static uint8_t usProtocol_aoaSendPackage(mux_itunes *uSdev, void *buffer, uint32_t size)
 {
 	uint32_t actual_length = 0;
+	uint32_t already = 0;
+	uint8_t *curBuf = NULL;
 
-	if(usUsb_BlukPacketSend(&(uSdev->usbdev), buffer, size, &actual_length) ||
-			actual_length != size){
+	if(!buffer || !size){
+		PRODEBUG("usUsb_BlukPacketSend Error Parameter:%p Size:%d\r\n", 
+							buffer, size);		
 		return PROTOCOL_REGEN;
 	}
-	
+#define AOA_MAGIC_SIZE			511
+	/*aoa package send must send 16KB*n*/
+	curBuf = (uint8_t *)buffer;
+	while(already < size){		
+		uint32_t sndSize = 0, freeSize = 0;
+		freeSize = size-already;
+		if(freeSize >= USB_MTU_AOA){
+			sndSize = USB_MTU_AOA-AOA_MAGIC_SIZE;
+		}else{
+			sndSize = freeSize;
+		}
+		if(usUsb_BlukPacketSend(&(uSdev->usbdev), curBuf+already, 
+						sndSize, &actual_length)){
+			PRODEBUG("usUsb_BlukPacketSend Error:%p sndSize:%d already:%d\r\n", 
+						buffer, sndSize, already);		
+			return PROTOCOL_REGEN;
+		}
+		already+= actual_length;
+		PRODEBUG("usUsb_BlukPacketSend Successful:%p sndSize:%d already:%d\r\n", 
+					buffer, sndSize, already);		
+	}
+
 	return PROTOCOL_REOK;
 }
 
@@ -666,7 +673,7 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 		}
 		tbuffer += uSdev->prohlen;
 		if(uSdev->protlen<= uSdev->max_payload &&
-				(read_length = uSdev->protlen-uSdev->prohlen)){
+				(read_length = uSdev->protlen-uSdev->prohlen) > 0){
 			if(usUsb_BlukPacketReceive(&(uSdev->usbdev), tbuffer, 
 							read_length, &actual_length)){
 				PRODEBUG("Receive ios Package Header Error\r\n");

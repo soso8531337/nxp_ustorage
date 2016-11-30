@@ -244,6 +244,7 @@ static int usStorage_sendHEAD(struct scsi_head *header)
 	return 0;
 }
 
+#ifdef NXP_ALLOW_WARING
 static int usStorage_sendHEADBUF(struct scsi_head *header)
 {
 	uint8_t *buffer = NULL;
@@ -266,6 +267,7 @@ static int usStorage_sendHEADBUF(struct scsi_head *header)
 
 	return 0;
 }
+#endif
 
 /*
 *Read Multi TIme
@@ -419,13 +421,13 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 	addr = header->addr;
 	/*Write the first payload*/
 	paySize= recvSize-PRO_HDR;
-	if((secSize = OP_MOD(paySize))){
+	if((secSize = OP_MOD(paySize)) > 0){
 		memcpy(sector, buffer+PRO_HDR+OP_DIV(paySize)*USDISK_SECTOR, 
 					secSize);
 		SDEBUGOUT("REQUEST WRITE: InComplete Sector Detect[BEGIN]:%d/%dBytes\r\n", 
 								secSize, USDISK_SECTOR);
 	}
-	if((sdivSize = OP_DIV(paySize)) && 
+	if((sdivSize = OP_DIV(paySize)) > 0&& 
 			usDisk_DiskWriteSectors(buffer+PRO_HDR, addr, sdivSize)){
 		SDEBUGOUT("REQUEST WRITE Error[addr:%d  SectorCount:%d]\r\n",
 						addr, sdivSize);
@@ -483,7 +485,7 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 		}
 		
 		secCount = OP_DIV(paySize);
-		if(!secSize && (secSize = OP_MOD(paySize))){
+		if(!secSize && (secSize = OP_MOD(paySize)) > 0){
 			SDEBUGOUT("REQUEST WRITE: InComplete Sector Detect [LAST]:%d/%dBytes\r\n", 
 									secSize, USDISK_SECTOR);
 			memcpy(sector, ptr+secCount*USDISK_SECTOR, secSize);

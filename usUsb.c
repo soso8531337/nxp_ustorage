@@ -107,6 +107,7 @@ static uint8_t NXP_BlukPacketReceiveStream(usb_device *usbdev, uint8_t *buffer,
 	return USB_REOK;
 }	
 
+#ifdef NXP_ALLOW_WARING
 static uint8_t NXP_BlukPacketReceiveStream2(usb_device *usbdev, uint8_t *buffer, 
 													uint32_t length, uint32_t *actual_length)
 {
@@ -139,6 +140,7 @@ static uint8_t NXP_BlukPacketReceiveStream2(usb_device *usbdev, uint8_t *buffer,
 
 	return USB_REOK;
 }	
+#endif
 
 static uint8_t NXP_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, 
 													uint32_t length, uint32_t *actual_length)
@@ -376,15 +378,16 @@ static uint8_t NXP_Init(usb_device *usbdev, void *os_priv)
 	return USB_REOK;
 }
 
+#ifdef NXP_DISK_LIMITSIZE /*limit read write disk size*/
 uint8_t NXP_DiskReadSectors(usb_device *usbdev, 
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 	int ret;
-	void *curBuf = NULL;
+	uint8_t *curBuf = NULL;
 	uint32_t already = 0, curSec;
 	uint8_t numSecPer;
 
-	curBuf = buff;
+	curBuf = (uint8_t*)buff;
 	curSec = secStart;
 	while(already < numSec){		
 		if(numSec-already > MAX_SCSI_SECTOR){
@@ -393,7 +396,7 @@ uint8_t NXP_DiskReadSectors(usb_device *usbdev,
 			numSecPer = numSec-already;
 		}
 		ret = MS_Host_ReadDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
-							curSec, numSecPer, BlockSize, curBuf+already*BlockSize);
+							curSec, numSecPer, BlockSize, (void *)(curBuf+already*BlockSize));
 		if(ret) {
 			USBDEBUG("Error reading device block. ret = %d\r\n", ret);
 			USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
@@ -411,11 +414,11 @@ uint8_t NXP_DiskWriteSectors(usb_device *usbdev,
 					void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 	int ret;
-	void *curBuf = NULL;
+	uint8_t *curBuf = NULL;
 	uint32_t already = 0, curSec;
 	uint8_t numSecPer;
 
-	curBuf = buff;
+	curBuf = (uint8_t*)buff;
 	curSec = secStart;
 	while(already < numSec){		
 		if(numSec-already > MAX_SCSI_SECTOR){
@@ -424,7 +427,7 @@ uint8_t NXP_DiskWriteSectors(usb_device *usbdev,
 			numSecPer = numSec-already;
 		}
 		ret = MS_Host_WriteDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
-							curSec, numSecPer, BlockSize, curBuf+already*BlockSize);
+							curSec, numSecPer, BlockSize, (void *)(curBuf+already*BlockSize));
 		if(ret) {
 			USBDEBUG("Error writing device block. ret = %d\r\n", ret);
 			USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
@@ -437,6 +440,41 @@ uint8_t NXP_DiskWriteSectors(usb_device *usbdev,
 
 	return USB_REOK;
 }
+
+#else
+uint8_t NXP_DiskReadSectors(usb_device *usbdev, 
+				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+	int ret;
+
+	ret = MS_Host_ReadDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+		secStart, numSec, BlockSize, buff);
+	if(ret) {
+		USBDEBUG("Error reading device block. ret = %d\r\n", ret);
+		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+		return USB_REGEN;
+	}
+	
+	USBDEBUG("SCSI Read %dSectors [StarSector:%d]\r\n", numSec, secStart); 	
+	return USB_REOK;
+}
+
+uint8_t NXP_DiskWriteSectors(usb_device *usbdev, 
+					void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+	int ret;
+	ret = MS_Host_WriteDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+					secStart, numSec, BlockSize, buff);
+	if(ret) {
+		USBDEBUG("Error writing device block. ret = %d\r\n", ret);		
+		USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+		return USB_REGEN;
+	}
+	
+	USBDEBUG("SCSI Write %dSectors [StarSector:%d]\r\n", numSec, secStart); 	
+	return USB_REOK;
+}
+#endif
 uint8_t NXP_GetMaxLUN(usb_device *usbdev, uint8_t *LunIndex)
 {
 	USB_ClassInfo_MS_Host_t *MSInterfaceInfo;

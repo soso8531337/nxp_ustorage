@@ -15,9 +15,9 @@ extern "C" {
 
 #define NXP_CHIP_18XX 1
 //#define LINUX   1
-#ifndef DEBUG_ENABLE
-#define DEBUG_ENABLE    1
-#endif
+//#ifndef DEBUG_ENABLE
+#define DEBUG_ENABLE1    1
+//#endif
 
 
 /** @defgroup Mass_Storage_Host_Definition Main definitions
