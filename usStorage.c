@@ -69,6 +69,10 @@
 #define OP_MOD(x)			((x)%USDISK_SECTOR)
 
 #if defined(NXP_CHIP_18XX)
+
+#define NXP_USB_PHONE 	1
+#define NXP_USB_DISK	0
+
 /** LPCUSBlib Mass Storage Class driver interface configuration and state information. This structure is
  *  passed to all Mass Storage Class driver functions, so that multiple instances of the same class
  *  within a device can be differentiated from one another.
@@ -673,8 +677,8 @@ static int usStorage_Handle(void)
 void vs_main_disk(void *pvParameters)
 {
 	while(1){
-		while (USB_HostState[1] != HOST_STATE_Configured) {
-			USB_USBTask(1, USB_MODE_Host);
+		while (USB_HostState[NXP_USB_DISK] != HOST_STATE_Configured) {
+			USB_USBTask(NXP_USB_DISK, USB_MODE_Host);
 			continue;
 		}		
 		vTaskDelay(100);
@@ -690,8 +694,8 @@ void vs_main(void *pvParameters)
 			NULL, (tskIDLE_PRIORITY + 2UL), (TaskHandle_t *) NULL);
 
 	while(1){
-		if (USB_HostState[0] != HOST_STATE_Configured) {
-			USB_USBTask(0, USB_MODE_Host);
+		if (USB_HostState[NXP_USB_PHONE] != HOST_STATE_Configured) {
+			USB_USBTask(NXP_USB_PHONE, USB_MODE_Host);
 			continue;
 		}
 		/*Connect Phone Device*/
@@ -710,7 +714,7 @@ void vs_main(void *pvParameters)
  */
 void EVENT_USB_Host_DeviceAttached(const uint8_t corenum)
 {
-	if(corenum == 1){
+	if(corenum == NXP_USB_DISK){
 		SDEBUGOUT(("Disk Attached on port %d\r\n"), corenum);	
 	}else{
 		SDEBUGOUT(("Phone Attached on port %d\r\n"), corenum);	
@@ -724,7 +728,7 @@ void EVENT_USB_Host_DeviceUnattached(const uint8_t corenum)
 {
 	SDEBUGOUT(("\r\nDevice Unattached on port %d\r\n"), corenum);
 	memset(&(UStorage_Interface[corenum].State), 0x00, sizeof(UStorage_Interface[corenum].State));
-	if(corenum == 1){
+	if(corenum == NXP_USB_DISK){
 		usDisk_DeviceDisConnect();
 	}else{
 		usProtocol_DeviceDisConnect();
@@ -736,10 +740,10 @@ void EVENT_USB_Host_DeviceUnattached(const uint8_t corenum)
  */
 void EVENT_USB_Host_DeviceEnumerationComplete(const uint8_t corenum)
 {
-	if(corenum == 1){
+	if(corenum == NXP_USB_DISK){
 		SDEBUGOUT(("Disk Enumeration on port %d\r\n"), corenum);
 		usDisk_DeviceDetect(&UStorage_Interface[corenum]);
-	}else if(corenum == 0){
+	}else if(corenum == NXP_USB_PHONE){
 		SDEBUGOUT(("Phone Enumeration on port %d\r\n"), corenum);
 		usProtocol_DeviceDetect(&UStorage_Interface[corenum]);	
 	}else{
