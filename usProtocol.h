@@ -35,6 +35,7 @@ uint8_t usProtocol_DeviceDisConnect(void);
 uint8_t usProtocol_SendPackage(void *buffer, uint32_t size);
 uint8_t usProtocol_RecvPackage(void **buffer, uint32_t tsize, uint32_t *rsize);
 uint8_t usProtocol_GetAvaiableBuffer(void **buffer, uint32_t *size);
+uint8_t usProtocol_SetconnectPhoneStatus(uint8_t status);
 
 #ifdef __cplusplus
 }

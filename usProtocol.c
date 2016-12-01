@@ -135,6 +135,7 @@ enum{
 	PROTOCOL_REOK=0,
 	PROTOCOL_REPARA,
 	PROTOCOL_REGEN,
+	PROTOCOL_DISCONNECT,
 	PROTOCOL_REINVAILD
 };
 enum{
@@ -700,7 +701,8 @@ static uint8_t usProtocol_iosRecvPackage(mux_itunes *uSdev, void **buffer,
 			/*Connection Reset*/
 			PRODEBUG("Connection Reset:\r\n");
 			usUsb_PrintStr(payload, payload_length);
-			return PROTOCOL_REGEN;
+			usProtocol_SetconnectPhoneStatus(CONN_REFUSED);
+			return PROTOCOL_DISCONNECT;
 		}
 		uSdev->prohlen += actual_length;		
 		tbuffer += actual_length;
@@ -1237,6 +1239,11 @@ uint8_t usProtocol_ConnectIOSPhone(mux_itunes *uSdev)
 	return PROTOCOL_REOK;
 }
 
+uint8_t usProtocol_SetconnectPhoneStatus(uint8_t status)
+{
+	uSinfo.State = (enum mux_conn_state)status;
+	return PROTOCOL_REOK;
+}
 uint8_t usProtocol_ConnectPhone(void)
 {
 	if(uSinfo.State  == CONN_INIT){
