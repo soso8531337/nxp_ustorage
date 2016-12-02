@@ -110,6 +110,8 @@ static struct accessory_t acc_default = {
 #define USB_MTU_IOS			(3 * 16384)
 #define USB_MTU_AOA		(1*16384)
 #define IOS_MAX_PACKET		(32*1024)
+#define IOS_MAGIC_LIMIT		4096	
+#define IOS_MAGIC_SIZE			512
 
 #ifndef IPPROTO_TCP
 #define IPPROTO_TCP 		6
@@ -216,13 +218,17 @@ usStorage_info uSinfo;
 /*This is the global buffer for send usb data or receive usb data
 * It is very important
 */
+#if defined(NXP_CHIP_18XX)
 uint8_t usbBuffer[USB_MTU] __attribute__((section ("USB_RAM1"), zero_init));    // Memory dedicated for the USB Host Controlle;
-
-
+#else
+uint8_t usbBuffer[USB_MTU];
+#endif
 
 /*****************************************************************************
  * Private functions
  ****************************************************************************/
+static void usProtocol_iosControlInput(unsigned char *payload, uint32_t payload_length);
+
 static uint16_t find_sport(void)
 {
 	static uint16_t tcport =1;
@@ -414,23 +420,81 @@ static int send_tcp_ack(mux_itunes *conn)
 	return 0;
 }
 
+static int receive_ack(mux_itunes *uSdev)
+{
+	uint8_t buffer[MPACKET_SIZE] = {0};
+	uint32_t actual_length = 0;	
+	uint8_t *payload = NULL;
+	uint32_t payload_length;
+	struct tcphdr *th;
+	
+	if(!uSdev){
+		return  PROTOCOL_REPARA;
+	}
+	if(usUsb_BlukPacketReceive(&(uSdev->usbdev), buffer, 
+								uSdev->usbdev.wMaxPacketSize, &actual_length)){
+		PRODEBUG("Receive ios Package ACK Error\r\n");
+		return PROTOCOL_REGEN;
+	}
+	/*decode ack*/
+	struct mux_header *mhdr =  (struct mux_header *)buffer;	
+	int mux_header_size = ((uSdev->version < 2) ? 8 : sizeof(struct mux_header));
+	
+	if (uSdev->version >= 2) {
+		uSdev->rx_seq = ntohs(mhdr->rx_seq);
+	}		
+	if(ntohl(mhdr->protocol) == MUX_PROTO_CONTROL){			
+		payload = (unsigned char *)(mhdr+1);
+		payload_length = actual_length - mux_header_size;
+		usProtocol_iosControlInput(payload, payload_length);
+		return PROTOCOL_REINVAILD;
+	}else if(ntohl(mhdr->protocol) == MUX_PROTO_VERSION){
+		PRODEBUG("Receive ios Package MUX_PROTO_VERSION[Error]\r\n");
+		return PROTOCOL_REINVAILD;
+	}
+	if(actual_length != mux_header_size + sizeof(struct tcphdr)){
+		PRODEBUG("Receive ios ACK Package Failed[%d/%d]\r\n", 
+									actual_length, mux_header_size);
+		return PROTOCOL_REGEN;
+	}
+	/*We need to decode tcp header*/			
+	th = (struct tcphdr *)((char*)mhdr+mux_header_size);
+	
+	uSdev->tcpinfo.rx_seq = ntohl(th->th_seq);
+	uSdev->tcpinfo.rx_ack = ntohl(th->th_ack);
+	uSdev->tcpinfo.rx_win = ntohs(th->th_win) << 8;
+
+	return PROTOCOL_REOK;
+}
+
 static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32_t size)
 {	
 	uint8_t *tbuffer = (uint8_t *)buffer;
-	uint32_t  sndSize = 0, curSize = 0;
+	uint32_t  sndSize = 0, curSize = 0, rx_win = 0;
 	
 	if(!buffer || !size){
 		return PROTOCOL_REPARA;
 	}
-#define IOS_MAGIC_LIMIT		4096	
-#define IOS_MAGIC_SIZE			512
+
+	rx_win = uSdev->tcpinfo.rx_win;
 	while(curSize < size){
+		if(!rx_win){
+			PRODEBUG("Peer Windows is full  wait ACK[win:%u]\r\n", uSdev->tcpinfo.rx_win);
+			if(receive_ack(uSdev) != 0){
+				PRODEBUG("Wait ACK Error[%d]\r\n", rx_win);
+			}
+			rx_win = uSdev->tcpinfo.rx_win;
+			PRODEBUG("Wait ACK Successful[win:%u]\r\n", uSdev->tcpinfo.rx_win);
+		}
 		if(size-curSize >= IOS_MAX_PACKET){
 			sndSize = IOS_MAX_PACKET-IOS_MAGIC_SIZE;
 		}else{
 			sndSize = size-curSize;
 		}
+		sndSize = min(sndSize, rx_win);
+		rx_win -= sndSize;
 		/*Send ios package*/
+	#if defined(NXP_CHIP_18XX)
 		if(sndSize % IOS_MAGIC_LIMIT == 0){
 			PRODEBUG("Need To Divide Package Because Package size is %d\r\n", sndSize);
 			if(send_tcp(uSdev, TH_ACK, tbuffer+curSize, sndSize-IOS_MAGIC_SIZE) < 0){
@@ -441,14 +505,15 @@ static uint8_t usProtocol_iosSendPackage(mux_itunes *uSdev, void *buffer, uint32
 			curSize += (sndSize-IOS_MAGIC_SIZE);
 			sndSize = IOS_MAGIC_SIZE;
 		}
+	#endif	
 		if(send_tcp(uSdev, TH_ACK, tbuffer+curSize, sndSize) < 0){
 			PRODEBUG("usProtocol_iosSendPackage Error:%p Size:%d\r\n", buffer, sndSize);
 			return PROTOCOL_REGEN;
 		}
 		uSdev->tcpinfo.tx_seq += sndSize;		
 		curSize += sndSize;
-		PRODEBUG("usProtocol_iosSendPackage Successful:%p Size:%d curSize:%d\r\n", 
-				buffer, sndSize, curSize);		
+		PRODEBUG("usProtocol_iosSendPackage Successful:%p Size:%d curSize:%d Win:%d\r\n", 
+				buffer, sndSize, curSize, rx_win);		
 	}
 
 	return PROTOCOL_REOK;
@@ -1266,11 +1331,7 @@ uint8_t usProtocol_ConnectPhone(void)
 					uSinfo.VendorID, uSinfo.ProductID);
 		return PROTOCOL_REINVAILD;
 	}
-	if(uSinfo.itunes.ib_capacity >USB_MTU_IOS){
-		uSinfo.itunes.max_payload = USB_MTU_IOS -  sizeof(struct mux_header) - sizeof(struct tcphdr);
-	}else{
-		uSinfo.itunes.max_payload = uSinfo.itunes.ib_capacity -  sizeof(struct mux_header) - sizeof(struct tcphdr);
-	}
+	uSinfo.itunes.max_payload = uSinfo.itunes.ib_capacity -  sizeof(struct mux_header) - sizeof(struct tcphdr);
 	uSinfo.State = CONN_CONNECTED;
 	PRODEBUG("iPhone Device[v/p=%d:%d] Connected\r\n", 
 				uSinfo.VendorID, uSinfo.ProductID);

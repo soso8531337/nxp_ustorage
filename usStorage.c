@@ -68,6 +68,15 @@
 #define OP_DIV(x)			((x)/USDISK_SECTOR)
 #define OP_MOD(x)			((x)%USDISK_SECTOR)
 
+#if defined(LINUX)
+#define USB_WRTE			(256*1024)
+#define USB_WRTESEC	512     /*USB_WRTE/512*/
+#else
+#define USB_WRTE			(64*1024)
+#define USB_WRTESEC	128    /*USB_WRTE/512*/
+#endif
+uint8_t usbWriteBuffer[USB_WRTE];
+
 #if defined(NXP_CHIP_18XX)
 
 #define NXP_USB_PHONE 	1
@@ -407,6 +416,93 @@ static int usStorage_diskREAD(struct scsi_head *header)
 	return usStorage_diskSIGREAD(header);
 }
 
+#ifdef ENOUGH_MEMORY
+/*reduce write disk counts, but increase memcpy system call and increase cpu usage*/
+static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_head *header)
+{
+	uint32_t hSize = recvSize;
+	uint32_t paySize, curSize = 0;
+	int32_t addr;	
+	uint8_t *writePtr = NULL;
+	uint32_t usbWriteBufferLen = 0;
+
+	if(!buffer || !header){
+		SDEBUGOUT("usStorage_diskWRITE Parameter Error\r\n");
+		return 1;
+	}
+	if(!header->len){
+		SDEBUGOUT("usStorage_diskWRITE Length is 0\r\n");
+		return 0;
+	}
+	addr = header->addr;
+	/*Write the first payload*/
+	paySize= recvSize-PRO_HDR;
+
+	writePtr = usbWriteBuffer;
+	usbWriteBufferLen = USB_WRTE;
+	if(paySize){
+		memcpy(writePtr, buffer+PRO_HDR, paySize);
+		usbWriteBufferLen -= paySize;
+		writePtr += paySize;
+	}
+	curSize = paySize;
+	SDEBUGOUT("REQUEST WRITE: PART INFO: addr:%d curSize:%dBytes paySize:%dBytes WriteBuffer:%d\r\n", 
+							addr, curSize, paySize, usbWriteBufferLen);	
+	while(curSize < header->len){
+		uint8_t *pbuffer = NULL;
+		paySize = 0;
+		if(usProtocol_RecvPackage((void **)&pbuffer, hSize, &paySize)){
+			SDEBUGOUT("usProtocol_RecvPackage Failed\r\n");
+			/*Write to Phone*/
+			header->relag = 1;
+			usStorage_sendHEAD(header);			
+			return 1;
+		}
+		while(usbWriteBufferLen < paySize){
+			SDEBUGOUT("Usb Write Buffer Overflow, Write To Disk\r\n");
+			memcpy(writePtr, pbuffer, usbWriteBufferLen);
+			if(usDisk_DiskWriteSectors(usbWriteBuffer, addr, USB_WRTESEC)){
+				SDEBUGOUT("REQUEST WRITE Error[addr:%d	SectorCount:%d]\r\n",
+								addr, USB_WRTESEC);
+				/*Write to Phone*/
+				header->relag = 1;
+				usStorage_sendHEAD(header); 			
+				return 1;
+			}
+			addr += USB_WRTESEC;
+			curSize += usbWriteBufferLen;
+			/*Reset Var*/
+			writePtr = usbWriteBuffer;
+			pbuffer += usbWriteBufferLen;
+			paySize = paySize-usbWriteBufferLen;
+			usbWriteBufferLen = USB_WRTE;
+		}
+		memcpy(writePtr, pbuffer, paySize);
+		usbWriteBufferLen -= paySize;		
+		curSize += paySize;
+	}
+
+	if(usbWriteBufferLen != USB_WRTE &&
+			usDisk_DiskWriteSectors(usbWriteBuffer, addr,
+				OP_DIV(USB_WRTE-usbWriteBufferLen))){
+		SDEBUGOUT("REQUEST WRITE Error[addr:%d	SectorCount:%d]\r\n",
+						addr, OP_DIV(USB_WRTE-usbWriteBufferLen));
+		header->relag = 1;
+	}
+
+	/*Write to Phone*/
+	if(usStorage_sendHEAD(header)){
+		SDEBUGOUT("Error Send Header\r\n");
+		return 1;
+	}
+
+	SDEBUGOUT("REQUEST WRITE FINISH:\r\nwtag=%d\r\nctrid=%d\r\naddr=%d\r\nlen=%d\r\nwlun=%d\r\n", 
+			header->wtag, header->ctrid, header->addr, header->len, header->wlun);
+	
+	return 0;
+}
+
+#else
 static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_head *header)
 {
 	uint32_t hSize = recvSize;
@@ -518,6 +614,7 @@ static int usStorage_diskWRITE(uint8_t *buffer, uint32_t recvSize, struct scsi_h
 			header->wtag, header->ctrid, header->addr, header->len, header->wlun);
 	return 0;
 }
+#endif
 
 static int usStorage_diskINQUIRY(struct scsi_head *header)
 {
