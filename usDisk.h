@@ -19,12 +19,14 @@
 extern "C" {
 #endif
 
-uint8_t usDisk_DeviceDetect(void *os_priv);
-uint8_t usDisk_DeviceDisConnect(void);
-uint8_t usDisk_DiskReadSectors(void *buff, uint32_t secStart, uint32_t numSec);
-uint8_t usDisk_DiskWriteSectors(void *buff, uint32_t secStart, uint32_t numSec);
+void usDisk_DeviceInit(void *os_priv);
+uint8_t usDisk_DeviceDetect(uint8_t type, void *os_priv);
+uint8_t usDisk_DeviceDisConnect(uint8_t type, void *os_priv);
+uint8_t usDisk_DiskReadSectors(void *buff, int16_t wlun, uint32_t secStart, uint32_t numSec);
+uint8_t usDisk_DiskWriteSectors(void *buff, int16_t wlun, uint32_t secStart, uint32_t numSec);
 uint8_t usDisk_DiskNum(void);
-uint8_t usDisk_DiskInquiry(struct scsi_inquiry_info *inquiry);
+uint8_t usDisk_DiskInquiry(int16_t wlun, struct scsi_inquiry_info *inquiry);
+uint8_t usDisk_cacheSYNC(int16_t wlun);
 
 #ifdef __cplusplus
 }

@@ -8,9 +8,7 @@
  */
 #include <stdint.h>
 #include <stdio.h>
-#if defined(NXP_CHIP_18XX)
-#include "MassStorageHost.h"
-#endif
+
 /* Function to spin forever when there is an error */
 void die(uint8_t rc)
 {

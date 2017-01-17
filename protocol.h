@@ -43,18 +43,19 @@ enum{
 };
 
 enum {
-  SCSI_TEST = 0,
-  SCSI_READ  = 1,//28
-  SCSI_WRITE = 2 | SCSI_WFLAG,//2a
-  SCSI_INQUIRY = 3,//12
-  SCSI_READ_CAPACITY =4,//25
-  SCSI_GET_LUN = 5,
-  SCSI_INPUT = 6,
-  SCSI_OUTPUT = 7,
-  SCSI_UPDATE_START = 8,
-  SCSI_UPDATE_DATA = 9 | SCSI_WFLAG,
-  SCSI_UPDATE_END = 10,
-  SCSI_FIRMWARE_INFO=11,
+	SCSI_TEST = 0,
+	SCSI_READ  = 1,//28
+	SCSI_WRITE = 2 | SCSI_WFLAG,//2a
+	SCSI_INQUIRY = 3,//12
+	SCSI_READ_CAPACITY =4,//25
+	SCSI_GET_LUN = 5,
+	SCSI_INPUT = 6,
+	SCSI_OUTPUT = 7,
+	SCSI_UPDATE_START = 8,
+	SCSI_UPDATE_DATA = 9 | SCSI_WFLAG,
+	SCSI_UPDATE_END = 10,
+	SCSI_FIRMWARE_INFO=11,
+	SCSI_SYNC_INFO=12,
 };
 
 enum {
@@ -89,8 +90,9 @@ typedef struct acessory_parameter
 	char model_name[32];
 	char sn[32];
 	char fw_version[16];
-	char hw_version[16];	
-	char license[128];
+	char hw_version[16];
+	char cardid[8];
+	char license[120];
 }__attribute__((__packed__))vs_acessory_parameter;
 
 #endif

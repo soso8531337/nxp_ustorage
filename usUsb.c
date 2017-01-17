@@ -5,15 +5,19 @@
  * All rights reserved.
  *
  */
- 
+#if defined(NXP_CHIP_18XX)
+#pragma arm section code ="USB_RAM2", rwdata="USB_RAM2"
+#endif 
 #include <ctype.h>
 #include <stdio.h>
 #include "usUsb.h"
 #include "usSys.h"
 
 #if defined(NXP_CHIP_18XX)
-#include "MassStorageHost.h"
-#include "fsusb_cfg.h"
+#include "board.h"
+#include "USB.h"
+#include <ctype.h>
+#include <stdio.h>
 #elif defined(LINUX)
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,12 +30,6 @@
 #include <errno.h>
 #include <libusb-1.0/libusb.h>
 #endif
-
-enum{
-	USB_REOK=0,
-	USB_REPARA,
-	USB_REGEN
-};
 
 #if defined(DEBUG_ENABLE1)
 #define USBDEBUG(...) do {printf("[USB Mod]");printf(__VA_ARGS__);} while(0)
@@ -73,57 +71,39 @@ static uint8_t NXP_BlukPacketReceiveStream(usb_device *usbdev, uint8_t *buffer,
 													uint32_t length, uint32_t *actual_length)
 {
 	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
-	uint8_t *DataStream = (uint8_t *) buffer;
-	uint8_t corenum;
-	uint16_t Length = length;
+	uint32_t already = 0;
 	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
 
 	if(!usbdev || !buffer || !actual_length){
 		return USB_REPARA;
 	}
-	
-	Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
-			MSInterfaceInfo->Config.DataINPipeNumber);	
-	corenum = MSInterfaceInfo->Config.PortNumber;
-	while (Length) {
-		if (Pipe_IsReadWriteAllowed(corenum)) {
-			*DataStream = Pipe_Read_8(corenum);
-			DataStream++;
-			Length--;
+	*actual_length = 0;
+	while (already < length) {		
+		uint32_t actual = 0;
+		if(already == 0 && length > 512){
+			/*we must receive 512*n, if it is not 512*n, divide twice*/
+			ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataINPipeNumber,
+						buffer, length-length%512, &actual);
+		}else{
+			ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataINPipeNumber,
+						buffer+already, length-already, &actual);
 		}
-		else {
-			Pipe_ClearIN(corenum);
-			HcdDataTransfer(PipeInfo[corenum][pipeselected[corenum]].PipeHandle,
-							PipeInfo[corenum][pipeselected[corenum]].Buffer,
-							MIN(Length, PipeInfo[corenum][pipeselected[corenum]].BufferSize),
-							&PipeInfo[corenum][pipeselected[corenum]].ByteTransfered);
-			ErrorCode = Pipe_WaitUntilReady(corenum);
-			if (ErrorCode) {				
-				USBDEBUG("USB Stream Receive Error[%d-->Length=%d]\r\n", ErrorCode, Length);
-				return ErrorCode;
-			}
-			if(Pipe_BytesInPipe(corenum) % 512){
-				/*If do not handle the incomplete package, pipe will be broken I do not know the reason*/
-				USBDEBUG("USB Stream HcdDataTransfer Receive Not a Complete Package[%d]\r\n", Pipe_BytesInPipe(corenum));
-				while (Pipe_IsReadWriteAllowed(corenum)) {
-					*DataStream = Pipe_Read_8(corenum);
-					DataStream++;
-					Length--;
-				}
-				*actual_length = length-Length;
-				USBDEBUG("USB Stream Receive Not Complete [%d/%dBytes]\r\n", *actual_length, length);
-				return USB_REOK;
-			}
-			//USBDEBUG("USB Stream HcdDataTransfer Receive[%d]\r\n", Pipe_BytesInPipe(corenum));
+		if (ErrorCode) {
+			USBDEBUG("USB Receive Error[%d]\r\n", ErrorCode);
+			return ErrorCode;
 		}
+		already+= actual;
+		*actual_length += actual;
+
+		//USBDEBUG("USB Stream HcdDataTransfer Receive[%d]\r\n", Pipe_BytesInPipe(corenum));
 	}
-	
-	*actual_length = length;
+
 	USBDEBUG("USB Stream Receive [%d/%dBytes]\r\n", *actual_length, length);
 
 	return USB_REOK;
 }	
 
+#ifdef NXP_ALLOW_WARING
 static uint8_t NXP_BlukPacketReceiveStream2(usb_device *usbdev, uint8_t *buffer, 
 													uint32_t length, uint32_t *actual_length)
 {
@@ -156,41 +136,25 @@ static uint8_t NXP_BlukPacketReceiveStream2(usb_device *usbdev, uint8_t *buffer,
 
 	return USB_REOK;
 }	
+#endif
 
 static uint8_t NXP_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, 
 													uint32_t length, uint32_t *actual_length)
 {
 	uint8_t  ErrorCode = PIPE_RWSTREAM_NoError;
-	uint8_t *DataStream = (uint8_t *) buffer;
-	uint32_t sndlen = 0;
 	
 	const USB_ClassInfo_MS_Host_t *MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
 
 	if(!usbdev || !buffer || !actual_length){
 		return USB_REPARA;
 	}
-	Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
-			MSInterfaceInfo->Config.DataINPipeNumber);
 
-	if(Pipe_IsReadWriteAllowed(MSInterfaceInfo->Config.PortNumber) == 0){
-		Pipe_ClearIN(MSInterfaceInfo->Config.PortNumber);
-		HcdDataTransfer(PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].PipeHandle,
-						PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].Buffer,
-						MIN(length, PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].BufferSize),
-						&PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].ByteTransfered);
-		ErrorCode = Pipe_WaitUntilReady(MSInterfaceInfo->Config.PortNumber);
-		if (ErrorCode) {
-			USBDEBUG("USB Receive Error[%d]\r\n", ErrorCode);
-			return ErrorCode;
-		}
+	ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataINPipeNumber,
+					buffer, length, actual_length);
+	if (ErrorCode) {
+		USBDEBUG("USB Receive Error[%d]\r\n", ErrorCode);
+		return ErrorCode;
 	}
-	while (Pipe_IsReadWriteAllowed(MSInterfaceInfo->Config.PortNumber)) {
-		*DataStream = Pipe_Read_8(MSInterfaceInfo->Config.PortNumber);
-		DataStream++;
-		sndlen++;
-	}
-
-	*actual_length = sndlen;
 	USBDEBUG("USB Receive [%d/%dBytes]\r\n", *actual_length, length);
 
 	return USB_REOK;
@@ -206,46 +170,27 @@ static uint8_t NXP_BlukPacketSend(usb_device *usbdev, uint8_t *buffer,
 	if(!usbdev || !buffer || !actual_length){
 		return USB_REPARA;
 	}
-	
+	*actual_length= 0;
 	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)usbdev->os_priv;
 	while(already < length){		
 		uint32_t sndlen = 0;
-		Pipe_SelectPipe(MSInterfaceInfo->Config.PortNumber, 
-					MSInterfaceInfo->Config.DataOUTPipeNumber);
-		Pipe_Unfreeze();
 
-		if(length-already > MAX_USB_PACKAGE){
-			sndlen = MAX_USB_PACKAGE;
+		if(already == 0 && length % 512 == 0){
+			ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataOUTPipeNumber,
+							buffer, length-1, &sndlen);
 		}else{
-			if((length -already) % 512 == 0){
-				sndlen = length -already-1;
-			}else{
-				sndlen= length -already;
-			}
+			ErrorCode = Pipe_Streaming2(MSInterfaceInfo->Config.PortNumber, MSInterfaceInfo->Config.DataOUTPipeNumber,
+							buffer+already, length-already, &sndlen);
 		}
 
-		ErrorCode = Pipe_Streaming(MSInterfaceInfo->Config.PortNumber,buffer+already, sndlen, 
-					usbdev->wMaxPacketSize);
-		if(ErrorCode == PIPE_RWSTREAM_IncompleteTransfer){
-			USBDEBUG("PiPe Streaming Not Ready[%d]...\r\n", PIPE_RWSTREAM_IncompleteTransfer);			
-			continue;
+		if (ErrorCode) {
+			USBDEBUG("USB Send Error[%d]\r\n", ErrorCode);
+			return ErrorCode;
 		}
-	#ifdef DEBUG
-		else{
-			USBDEBUG("Send PiPe Streaming Write[%dBytes]...\r\n", 
-			PipeInfo[MSInterfaceInfo->Config.PortNumber][pipeselected[MSInterfaceInfo->Config.PortNumber]].ByteTransfered);
-		}
-	#endif	
-		while(((ErrorCode = MSInterfaceInfo->State.IsActive) == USB_TRUE)
-				&& !Pipe_IsStatusOK(MSInterfaceInfo->Config.PortNumber));
-		
-		if(ErrorCode != USB_TRUE){
-			USBDEBUG("CallBack Excute Error Something Happen...\r\n");
-			return USB_REGEN;
-		}
-		already += sndlen;
+		USBDEBUG("Send PiPe Streaming Write[%dBytes]...\r\n", sndlen);
+		already += sndlen;		
+		*actual_length += sndlen;
 	}
-	*actual_length = length;
 	USBDEBUG("USB Send [%d/%dBytes]\r\n", *actual_length, length);
 	return USB_REOK;
 }
@@ -413,6 +358,35 @@ static uint8_t NXP_ClaimInterface(usb_device *usbdev, nxp_clminface*cPrivate)
 	usbdev->ep_out = MSInterfaceInfo->Config.DataOUTPipeNumber;
 	return USB_REOK;
 }
+
+static void NXP_SdcardWriteCheck(void *buff, uint32_t secStart, uint32_t numSec)
+{
+	uint8_t secBuf[512];
+	uint32_t startCur;
+	uint32_t diffCur;
+	
+	for(startCur = 0; startCur < numSec; startCur++){
+		int32_t act_read;
+		act_read =  Chip_SDMMC_ReadBlocks(LPC_SDMMC, secBuf, secStart+startCur, 1);
+		if(!act_read){
+			printf("Error reading SDCard\r\n");			
+			return ;
+		}
+		uint8_t *diffbuf = (uint8_t *)buff + startCur*512;
+		for(diffCur = 0; diffCur < 512; diffCur++){
+			if(diffbuf[diffCur] != secBuf[diffCur]){
+				printf("Data Not Same===>ErrorSec:%d SecStart:%d NumSec:%d>>Blow is detail Sector:\r\n", startCur, secStart, numSec);
+				usUsb_Print(diffbuf, 512);
+				printf("=================================================");
+				usUsb_Print(secBuf, 512);
+				printf("\r\n\r\n");
+				break;
+			}
+		}
+	}
+	printf("Data Check Finish SecStart:%d NumSec:%d\r\n", secStart, numSec);
+}
+
 static uint8_t NXP_Init(usb_device *usbdev, void *os_priv)
 {
 	USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
@@ -420,24 +394,27 @@ static uint8_t NXP_Init(usb_device *usbdev, void *os_priv)
 	if(!usbdev || !os_priv){
 		return USB_REPARA;
 	}
-	usbdev->os_priv = os_priv;	
-	MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(os_priv);
+	usbdev->os_priv = os_priv;
 
-	/*Just set device_address == PortNumber*/
-	usbdev->device_address  = MSInterfaceInfo->Config.PortNumber;
+	if(usbdev->usb_type != USB_CARD){
+		MSInterfaceInfo = (USB_ClassInfo_MS_Host_t *)(os_priv);
+		/*Just set device_address == PortNumber*/
+		usbdev->device_address  = MSInterfaceInfo->Config.PortNumber;
+	}
 
 	return USB_REOK;
 }
 
+#ifdef NXP_DISK_LIMITSIZE /*limit read write disk size*/
 uint8_t NXP_DiskReadSectors(usb_device *usbdev, 
 				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 	int ret;
-	void *curBuf = NULL;
+	uint8_t *curBuf = NULL;
 	uint32_t already = 0, curSec;
 	uint8_t numSecPer;
 
-	curBuf = buff;
+	curBuf = (uint8_t*)buff;
 	curSec = secStart;
 	while(already < numSec){		
 		if(numSec-already > MAX_SCSI_SECTOR){
@@ -445,12 +422,22 @@ uint8_t NXP_DiskReadSectors(usb_device *usbdev,
 		}else{
 			numSecPer = numSec-already;
 		}
-		ret = MS_Host_ReadDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
-							curSec, numSecPer, BlockSize, curBuf+already*BlockSize);
-		if(ret) {
-			USBDEBUG("Error reading device block. ret = %d\r\n", ret);
-			USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
-			return USB_REGEN;
+		if(usbdev->usb_type == USB_CARD){
+			int32_t act_read;
+			act_read =  Chip_SDMMC_ReadBlocks(LPC_SDMMC, 
+					(void *)(curBuf+already*DEF_SECTOR), curSec, numSecPer);
+			if(!act_read){
+				USBDEBUG("Error write SDCard\r\n"); 		
+				return USB_REGEN;
+			}
+		}else{	
+			ret = MS_Host_ReadDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+								curSec, numSecPer, BlockSize, (void *)(curBuf+already*BlockSize));
+			if(ret) {
+				USBDEBUG("Error reading device block. ret = %d\r\n", ret);
+				USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+				return USB_REGEN;
+			}
 		}
 		already += numSecPer;
 		curSec += numSecPer;
@@ -464,11 +451,11 @@ uint8_t NXP_DiskWriteSectors(usb_device *usbdev,
 					void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
 {
 	int ret;
-	void *curBuf = NULL;
+	uint8_t *curBuf = NULL;
 	uint32_t already = 0, curSec;
 	uint8_t numSecPer;
 
-	curBuf = buff;
+	curBuf = (uint8_t*)buff;
 	curSec = secStart;
 	while(already < numSec){		
 		if(numSec-already > MAX_SCSI_SECTOR){
@@ -476,12 +463,22 @@ uint8_t NXP_DiskWriteSectors(usb_device *usbdev,
 		}else{
 			numSecPer = numSec-already;
 		}
-		ret = MS_Host_WriteDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
-							curSec, numSecPer, BlockSize, curBuf+already*BlockSize);
-		if(ret) {
-			USBDEBUG("Error writing device block. ret = %d\r\n", ret);
-			USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
-			return USB_REGEN;
+		if(usbdev->usb_type == USB_CARD){
+			int32_t act_written;	
+			act_written =  Chip_SDMMC_WriteBlocks(LPC_SDMMC, 
+					(void *)(curBuf+already*DEF_SECTOR), curSec, numSecPer);
+			if(!act_written){
+				USBDEBUG("Error write SDCard\r\n"); 		
+				return USB_REGEN;
+			}
+		}else{
+			ret = MS_Host_WriteDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+								curSec, numSecPer, BlockSize, (void *)(curBuf+already*BlockSize));
+			if(ret) {
+				USBDEBUG("Error writing device block. ret = %d\r\n", ret);
+				USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+				return USB_REGEN;
+			}
 		}
 		already += numSecPer;
 		curSec += numSecPer;
@@ -490,6 +487,77 @@ uint8_t NXP_DiskWriteSectors(usb_device *usbdev,
 
 	return USB_REOK;
 }
+
+#else
+uint8_t NXP_DiskReadSectors(usb_device *usbdev, 
+				void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+	int ret;
+
+	if(!usbdev || !buff){
+		printf("Parameter Error\r\n");
+		return USB_REPARA;
+	}
+	if(usbdev->usb_type == USB_CARD){
+		int32_t act_read;
+
+		act_read =  Chip_SDMMC_ReadBlocks(LPC_SDMMC, buff, secStart, numSec);
+		if(!act_read){
+			USBDEBUG("Error reading SDCard\r\n");			
+			return USB_REGEN;
+		}
+		USBDEBUG("SDCard Read %dSectors [StarSector:%d][%dBytes]\r\n", 
+				numSec, secStart, act_read);	
+		return USB_REOK;		
+	}else{
+		/*USB Storage Read*/
+		ret = MS_Host_ReadDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+				secStart, numSec, BlockSize, buff);
+		if(ret) {
+			USBDEBUG("Error reading device block. ret = %d\r\n", ret);
+			USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+			return USB_REGEN;
+		}	
+		USBDEBUG("SCSI Read %dSectors [StarSector:%d]\r\n", numSec, secStart); 	
+	}
+	return USB_REOK;
+}
+
+uint8_t NXP_DiskWriteSectors(usb_device *usbdev, 
+					void *buff, uint32_t secStart, uint32_t numSec, uint16_t BlockSize)
+{
+	int ret;
+
+	if(!usbdev || !buff){
+		printf("Parameter Error\r\n");
+		return USB_REPARA;
+	}
+	if(usbdev->usb_type == USB_CARD){
+		int32_t act_written;
+		
+		act_written =  Chip_SDMMC_WriteBlocks(LPC_SDMMC, buff, secStart, numSec);
+		if(!act_written){
+			USBDEBUG("Error write SDCard\r\n");			
+			return USB_REGEN;
+		}
+		USBDEBUG("SDCard Write %dSectors [StarSector:%d][%dBytes]\r\n", 
+				numSec, secStart, act_written);	
+		return USB_REOK;		
+	}else{
+		/*USB Storage Write*/
+		ret = MS_Host_WriteDeviceBlocks((USB_ClassInfo_MS_Host_t*)usbdev->os_priv, 0, 
+						secStart, numSec, BlockSize, buff);
+		if(ret) {
+			USBDEBUG("Error writing device block. ret = %d\r\n", ret);		
+			USB_Host_SetDeviceConfiguration(usbdev->device_address, 0);
+			return USB_REGEN;
+		}
+		USBDEBUG("SCSI Write %dSectors [StarSector:%d]\r\n", numSec, secStart); 	
+	}
+	return USB_REOK;
+}
+#endif
+
 uint8_t NXP_GetMaxLUN(usb_device *usbdev, uint8_t *LunIndex)
 {
 	USB_ClassInfo_MS_Host_t *MSInterfaceInfo;
@@ -616,51 +684,68 @@ static uint8_t LINUX_SendControlRequest(void* dev_handle,
 static uint8_t LINUX_BlukPacketSend(usb_device *usbdev, uint8_t *buffer, 
 														uint32_t length, uint32_t *actual_length)
 {
-	int8_t rc;
+	int8_t rc = 0;
 	int transferred = 0;
-
+	uint32_t already = 0, sndlen;
+	
 	if(!usbdev || !buffer || !actual_length){
 		return USB_REGEN;
 	}
-	rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
-							usbdev->ep_out,
-							buffer,
-							length,
-							&transferred,
-							0);
-	if(rc < 0){
-			if (rc  == LIBUSB_ERROR_TIMEOUT){
-				USBDEBUG("LIBUSB Send Timeout\n");
-			}else if(rc == LIBUSB_ERROR_NO_DEVICE){
-				USBDEBUG("Device OffLine....\n");
-			}else{
-				USBDEBUG("LIBUSB bulk transfer error %d\n", rc);
-			}
-			return USB_REGEN;
-	}
-	if(length % usbdev->wMaxPacketSize == 0){
-		uint8_t buf[1];		
-		int transfer = 0;
-		USBDEBUG("LIBUSB Send ZLP.\r\n");
+
+#if defined(NXP_CHIP_18XX)	
+#define MAX_USB_PACKAGE2   	(32*1024)
+#elif defined(LINUX)
+#define MAX_USB_PACKAGE2   	(512*1024)
+#endif
+	while(already < length){	
+		if(length-already > MAX_USB_PACKAGE2){
+			sndlen = MAX_USB_PACKAGE2-1;
+		}else{
+			sndlen= length -already;
+		}
+		
 		rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
 								usbdev->ep_out,
-								buf,
-								0,
-								&transfer,
+								buffer+already,
+								sndlen,
+								&transferred,
 								0);
 		if(rc < 0){
 				if (rc  == LIBUSB_ERROR_TIMEOUT){
-					USBDEBUG("LIBUSB Send ZLP Timeout\n");
+					USBDEBUG("LIBUSB Send Timeout\n");
 				}else if(rc == LIBUSB_ERROR_NO_DEVICE){
 					USBDEBUG("Device OffLine....\n");
+					return USB_DISCNT;
 				}else{
-					USBDEBUG("LIBUSB bulk transfer  ZLP error %d\n", rc);
+					USBDEBUG("LIBUSB bulk transfer error %d\n", rc);
 				}
-				return USB_REGEN;
-		}		
-	}	
+				return USB_RETRANS;
+		}
+		if(sndlen % usbdev->wMaxPacketSize == 0){
+			uint8_t buf[1]; 	
+			int transfer = 0;
+			USBDEBUG("LIBUSB Send ZLP.\r\n");
+			rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
+									usbdev->ep_out,
+									buf,
+									0,
+									&transfer,
+									0);
+			if(rc < 0){
+					if (rc	== LIBUSB_ERROR_TIMEOUT){
+						USBDEBUG("LIBUSB Send ZLP Timeout\n");
+					}else if(rc == LIBUSB_ERROR_NO_DEVICE){
+						USBDEBUG("Device OffLine....\n");
+					}else{
+						USBDEBUG("LIBUSB bulk transfer	ZLP error %d\n", rc);
+					}
+					return USB_RETRANS;
+			}	
+		}
+		already += transferred;
+	}
 
-	*actual_length = transferred;
+	*actual_length = already;
 	USBDEBUG("LIBUSB Send Successful:%u/%d.\r\n", *actual_length, length);
 
 	return rc?USB_REGEN:USB_REOK;
@@ -685,14 +770,15 @@ static uint8_t LINUX_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer,
 			if (rc  == LIBUSB_ERROR_TIMEOUT){
 				USBDEBUG("LIBUSB Receive Timeout\n");
 			}else if(rc == LIBUSB_ERROR_NO_DEVICE){
-				USBDEBUG("Device OffLine....\n");
+				USBDEBUG("Device OffLine....\n");				
+				return USB_DISCNT;
 			}else if(rc == LIBUSB_ERROR_OVERFLOW){
 				USBDEBUG("LIBUSB OverFlow[%p/%d/%dBytes]....\n", 
 							buffer, length, transferred);
 			}else{
 				USBDEBUG("LIBUSB bulk transfer error %d\n", rc);
 			}
-			return USB_REGEN;
+			return USB_RETRANS;
 	}
 	
 	*actual_length = transferred;
@@ -700,6 +786,45 @@ static uint8_t LINUX_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer,
 
 	return rc?USB_REGEN:USB_REOK;
 }
+
+static uint8_t LINUX_BlukPacketReceiveTmout(usb_device *usbdev, uint8_t *buffer, 
+															uint32_t length, uint32_t *actual_length, int timeout)
+{
+	int8_t rc;
+	int transferred = 0;
+
+	if(!usbdev || !buffer || !actual_length){
+		return USB_REGEN;
+	}
+	rc = libusb_bulk_transfer((struct libusb_device_handle *)(usbdev->os_priv),
+							usbdev->ep_in,
+							buffer,
+							length,
+							&transferred,
+							timeout);
+	if(rc < 0){
+			if (rc  == LIBUSB_ERROR_TIMEOUT){
+				USBDEBUG("LIBUSB Receive Timeout\n");
+				return USB_TMOUT;
+			}else if(rc == LIBUSB_ERROR_NO_DEVICE){
+				USBDEBUG("Device OffLine....\n");				
+				return USB_DISCNT;
+			}else if(rc == LIBUSB_ERROR_OVERFLOW){
+				USBDEBUG("LIBUSB OverFlow[%p/%d/%dBytes]....\n", 
+							buffer, length, transferred);
+			}else{
+				USBDEBUG("LIBUSB bulk transfer error %d\n", rc);
+			}
+			return USB_RETRANS;
+	}
+	
+	*actual_length = transferred;
+	USBDEBUG("LIBUSB Receive %u/%d.\r\n", *actual_length, length);
+
+	return rc?USB_REGEN:USB_REOK;
+}
+
+
 static uint8_t LINUX_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData)
 {
 	libusb_device_handle *dev_handle;
@@ -751,22 +876,41 @@ uint8_t LINUX_DiskReadSectors(usb_device *usbdev,
 {
 	int fd;
 	char *devname = (char*)usbdev->os_priv;
+	off_t offset;
+	int already = 0, res, total = 0;
 	
 	fd = open(devname, O_RDWR);
 	if(fd < 0){
 		USBDEBUG("Open %s Error:%s\n", devname, strerror(errno));
 		return USB_REGEN;
-	}
-	if(lseek(fd, secStart*512, SEEK_SET) < 0){
+	}	
+	offset = (off_t)secStart *BlockSize;	
+	if(lseek(fd, offset, SEEK_SET) < 0){
 		USBDEBUG("Lseek %s Error:%s\n", devname, strerror(errno));
 		close(fd);
 		return USB_REGEN;
 	}
-	if(read(fd, buff, numSec*BlockSize)< 0){
-		USBDEBUG("Read %s Error:%s\n", devname, strerror(errno));
-		close(fd);
-		return USB_REGEN;		
-	}
+	
+	total = numSec*BlockSize;
+	already = 0;
+	do {
+		res  = read(fd, buff + already, total - already);
+		if (res < 0) {
+			if(errno ==  EINTR ||
+					errno ==  EAGAIN){
+				continue;
+			}
+			USBDEBUG("Read %s Error:%s\r\n", devname, strerror(errno));
+			close(fd);
+			return USB_REGEN;		
+		}else if(res == 0){
+			USBDEBUG("Read End OF File: %s Error:%s[already=%d total=%d]\r\n", 
+					devname, strerror(errno), already, total);
+			close(fd);
+			return USB_REGEN;		
+		}
+		already += res;
+	} while (already < total);
 	close(fd);
 	
 	return USB_REOK;
@@ -777,22 +921,36 @@ uint8_t LINUX_DiskWriteSectors(usb_device *usbdev,
 {
 	int fd;
 	char *devname = (char*)usbdev->os_priv;
+	off_t offset;
+	int already = 0, res, total = 0;
 	
 	fd = open(devname, O_RDWR);
 	if(fd < 0){
 		USBDEBUG("Open %s Error:%s\n", devname, strerror(errno));
 		return USB_REGEN;
 	}
-	if(lseek(fd, secStart*512, SEEK_SET) < 0){
+	offset = (off_t)secStart *BlockSize;	
+	if(lseek(fd, offset, SEEK_SET) < 0){
 		USBDEBUG("Lseek %s Error:%s\n", devname, strerror(errno));
 		close(fd);
 		return USB_REGEN;
 	}
-	if(write(fd, buff, numSec*BlockSize)< 0){
-		USBDEBUG("write %s Error:%s\n", devname, strerror(errno));
-		close(fd);
-		return USB_REGEN;		
-	}
+
+	total = numSec*BlockSize;
+	already = 0;
+	do {
+		res  = write(fd, buff + already, total - already);
+		if (res < 0) {
+			if(errno ==  EINTR ||
+					errno ==  EAGAIN){
+				continue;
+			}
+			USBDEBUG("Write %s Error:%s\r\n", devname, strerror(errno));
+			close(fd);
+			return USB_REGEN;		
+		}
+		already += res;
+	} while (already < total);
 	close(fd);
 	
 	return USB_REOK;
@@ -848,6 +1006,17 @@ uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer,
 	return NXP_BlukPacketReceive(usbdev, buffer, length, actual_length);
 #elif defined(LINUX)
 	return LINUX_BlukPacketReceive(usbdev, buffer, length, actual_length);
+#endif
+
+}
+
+uint8_t usUsb_BlukPacketReceiveTmout(usb_device *usbdev, uint8_t *buffer, 
+															uint32_t length, uint32_t *actual_length, int timeout)
+{
+#if defined(NXP_CHIP_18XX)
+	return NXP_BlukPacketReceive(usbdev, buffer, length, actual_length);
+#elif defined(LINUX)
+	return LINUX_BlukPacketReceiveTmout(usbdev, buffer, length, actual_length, timeout);
 #endif
 
 }
@@ -944,7 +1113,7 @@ uint8_t usUsb_ReadDeviceCapacity(usb_device *usbdev, uint32_t *Blocks, uint32_t 
 #if defined(NXP_CHIP_18XX)
 	return NXP_ReadDeviceCapacity(usbdev, Blocks, BlockSize);
 #elif defined(LINUX)
-	*BlockSize = 512;
+	*BlockSize = DEF_SECTOR;
 	return USB_REOK;
 #endif
 }
@@ -1012,4 +1181,9 @@ void usUsb_PrintStr(uint8_t *buffer, int length)
 	printf("\r\n");
 
 }
+#if defined(NXP_CHIP_18XX)
+#pragma arm section code, rwdata
+#endif 
+
+
 

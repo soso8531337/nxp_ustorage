@@ -28,6 +28,13 @@ extern "C" {
 #define ntohs(A)		htons(A)
 #define ntohl(A)		htonl(A)
 
+enum{
+	PROTOCOL_REOK=0,
+	PROTOCOL_REPARA,
+	PROTOCOL_REGEN,
+	PROTOCOL_DISCONNECT,
+	PROTOCOL_REINVAILD
+};
 
 uint8_t usProtocol_DeviceDetect(void *os_priv);
 uint8_t usProtocol_ConnectPhone(void);
@@ -35,6 +42,7 @@ uint8_t usProtocol_DeviceDisConnect(void);
 uint8_t usProtocol_SendPackage(void *buffer, uint32_t size);
 uint8_t usProtocol_RecvPackage(void **buffer, uint32_t tsize, uint32_t *rsize);
 uint8_t usProtocol_GetAvaiableBuffer(void **buffer, uint32_t *size);
+uint8_t usProtocol_SetconnectPhoneStatus(uint8_t status);
 
 #ifdef __cplusplus
 }

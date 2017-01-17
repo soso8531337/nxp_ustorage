@@ -170,14 +170,27 @@ typedef  struct{
 	uint8_t  RevisionID[4];
 }SCSI_Inquiry_t;
 
+#define DEF_SECTOR		(512)
+enum{
+	USB_REOK=0,
+	USB_REPARA,
+	USB_REGEN,
+	USB_TMOUT,
+	USB_DISCNT,
+	USB_RETRANS
+};
 
+enum{	
+	USB_PHONE=1<<0,		
+	USB_CARD=1<<1,
+	USB_DISK = 1<<2,
+};
 
-
-
-typedef struct  {	
+typedef struct  {
+	uint8_t usb_type;
 	uint8_t bus_number;
 	uint8_t device_address;
-	uint8_t ep_in, ep_out;
+	uint8_t interface, ep_in, ep_out;
 	int wMaxPacketSize;
 	void *os_priv;
 }usb_device;
@@ -201,6 +214,8 @@ uint8_t usUsb_BlukPacketSend(usb_device *usbdev, uint8_t *buffer,
 															const uint32_t length, uint32_t *actual_length);
 uint8_t usUsb_BlukPacketReceive(usb_device *usbdev, uint8_t *buffer, 
 															uint32_t length, uint32_t *actual_length);
+uint8_t usUsb_BlukPacketReceiveTmout(usb_device *usbdev, uint8_t *buffer, 
+															uint32_t length, uint32_t *actual_length, int timeout);
 uint8_t usUsb_BlukPacketReceiveStream(usb_device *usbdev, uint8_t *buffer, 
 															uint32_t length, uint32_t *actual_length);
 uint8_t usUsb_GetDeviceDescriptor(usb_device *usbdev, USB_StdDesDevice_t *DeviceDescriptorData);
